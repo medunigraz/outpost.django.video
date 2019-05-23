@@ -9,14 +9,14 @@ from ...base.utils import Uuid4Upload
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0009_epiphansource'),
-    ]
+    dependencies = [("video", "0009_epiphansource")]
 
     operations = [
         migrations.AlterField(
-            model_name='epiphansource',
-            name='preview',
-            field=imagekit.models.fields.ProcessedImageField(blank=True, null=True, upload_to=Uuid4Upload),
-        ),
+            model_name="epiphansource",
+            name="preview",
+            field=imagekit.models.fields.ProcessedImageField(
+                blank=True, null=True, upload_to=Uuid4Upload
+            ),
+        )
     ]

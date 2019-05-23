@@ -7,14 +7,10 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0021_auto_20180308_1912'),
-    ]
+    dependencies = [("video", "0021_auto_20180308_1912")]
 
     operations = [
         migrations.AddField(
-            model_name='recording',
-            name='start',
-            field=models.DateTimeField(null=True),
-        ),
+            model_name="recording", name="start", field=models.DateTimeField(null=True)
+        )
     ]

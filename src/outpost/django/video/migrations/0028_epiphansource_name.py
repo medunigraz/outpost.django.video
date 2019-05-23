@@ -7,15 +7,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0027_auto_20180615_1335'),
-    ]
+    dependencies = [("video", "0027_auto_20180615_1335")]
 
     operations = [
         migrations.AddField(
-            model_name='epiphansource',
-            name='name',
-            field=models.CharField(default='HDMI', max_length=64),
+            model_name="epiphansource",
+            name="name",
+            field=models.CharField(default="HDMI", max_length=64),
             preserve_default=False,
-        ),
+        )
     ]

@@ -16,189 +16,371 @@ import uuid
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('base', '0006_notification'),
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('taggit', '0002_auto_20150616_2121'),
-        ('geo', '0018_auto_20170829_0937'),
-        ('video', '0012_auto_20171021_2239'),
+        ("base", "0006_notification"),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("taggit", "0002_auto_20150616_2121"),
+        ("geo", "0018_auto_20170829_0937"),
+        ("video", "0012_auto_20171021_2239"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='DASHVideoVariant',
+            name="DASHVideoVariant",
             fields=[
-                ('path', models.TextField()),
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('height', models.PositiveIntegerField()),
+                ("path", models.TextField()),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("height", models.PositiveIntegerField()),
+            ],
+            options={"abstract": False},
+        ),
+        migrations.CreateModel(
+            name="Event",
+            fields=[
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("title", models.CharField(max_length=256)),
+                ("subject", models.CharField(blank=True, max_length=256)),
+                ("description", models.TextField(blank=True)),
+                ("rights", models.TextField(blank=True)),
+                ("presenters", models.TextField(blank=True)),
+                ("contributors", models.TextField(blank=True)),
+                (
+                    "license",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE, to="base.License"
+                    ),
+                ),
+                (
+                    "room",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="geo.Room",
+                    ),
+                ),
+                (
+                    "tags",
+                    taggit.managers.TaggableManager(
+                        help_text="A comma-separated list of tags.",
+                        through="taggit.TaggedItem",
+                        to="taggit.Tag",
+                        verbose_name="Tags",
+                    ),
+                ),
+            ],
+        ),
+        migrations.CreateModel(
+            name="EventMedia",
+            fields=[
+                (
+                    "created",
+                    django_extensions.db.fields.CreationDateTimeField(
+                        auto_now_add=True, verbose_name="created"
+                    ),
+                ),
+                (
+                    "modified",
+                    django_extensions.db.fields.ModificationDateTimeField(
+                        auto_now=True, verbose_name="modified"
+                    ),
+                ),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("name", models.CharField(max_length=256)),
+                ("data", models.FileField(upload_to=Uuid4Upload)),
+                ("info", django.contrib.postgres.fields.jsonb.JSONField(null=True)),
             ],
             options={
-                'abstract': False,
+                "ordering": ("-modified", "-created"),
+                "get_latest_by": "modified",
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Event',
+            name="Publish",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('title', models.CharField(max_length=256)),
-                ('subject', models.CharField(blank=True, max_length=256)),
-                ('description', models.TextField(blank=True)),
-                ('rights', models.TextField(blank=True)),
-                ('presenters', models.TextField(blank=True)),
-                ('contributors', models.TextField(blank=True)),
-                ('license', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='base.License')),
-                ('room', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='geo.Room')),
-                ('tags', taggit.managers.TaggableManager(help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                )
+            ],
+            options={"abstract": False},
+        ),
+        migrations.CreateModel(
+            name="PublishMedia",
+            fields=[
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                )
+            ],
+            options={"abstract": False},
+        ),
+        migrations.CreateModel(
+            name="PublishMediaScene",
+            fields=[
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("timestamp", models.PositiveIntegerField()),
+                (
+                    "image",
+                    imagekit.models.fields.ProcessedImageField(upload_to=Uuid4Upload),
+                ),
+                (
+                    "words",
+                    django.contrib.postgres.fields.ArrayField(
+                        base_field=models.CharField(blank=True, max_length=512),
+                        default=list,
+                        size=None,
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='EventMedia',
+            name="DASHAudio",
             fields=[
-                ('created', django_extensions.db.fields.CreationDateTimeField(auto_now_add=True, verbose_name='created')),
-                ('modified', django_extensions.db.fields.ModificationDateTimeField(auto_now=True, verbose_name='modified')),
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('name', models.CharField(max_length=256)),
-                ('data', models.FileField(upload_to=Uuid4Upload)),
-                ('info', django.contrib.postgres.fields.jsonb.JSONField(null=True)),
+                (
+                    "publishmedia_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        parent_link=True,
+                        primary_key=True,
+                        serialize=False,
+                        to="video.PublishMedia",
+                    ),
+                ),
+                ("path", models.TextField()),
+            ],
+            options={"abstract": False},
+            bases=("video.publishmedia", models.Model),
+        ),
+        migrations.CreateModel(
+            name="DASHPublish",
+            fields=[
+                (
+                    "publish_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        parent_link=True,
+                        primary_key=True,
+                        serialize=False,
+                        to="video.Publish",
+                    ),
+                ),
+                (
+                    "audio",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="+",
+                        to="video.DASHAudio",
+                    ),
+                ),
+            ],
+            options={"abstract": False},
+            bases=("video.publish",),
+        ),
+        migrations.CreateModel(
+            name="DASHVideo",
+            fields=[
+                (
+                    "publishmedia_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        parent_link=True,
+                        primary_key=True,
+                        serialize=False,
+                        to="video.PublishMedia",
+                    ),
+                ),
+                (
+                    "preview",
+                    imagekit.models.fields.ProcessedImageField(upload_to=Uuid4Upload),
+                ),
+            ],
+            options={"abstract": False},
+            bases=("video.publishmedia",),
+        ),
+        migrations.CreateModel(
+            name="EventAudio",
+            fields=[
+                (
+                    "eventmedia_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        parent_link=True,
+                        primary_key=True,
+                        serialize=False,
+                        to="video.EventMedia",
+                    ),
+                )
             ],
             options={
-                'ordering': ('-modified', '-created'),
-                'get_latest_by': 'modified',
-                'abstract': False,
+                "ordering": ("-modified", "-created"),
+                "get_latest_by": "modified",
+                "abstract": False,
             },
+            bases=("video.eventmedia",),
         ),
         migrations.CreateModel(
-            name='Publish',
+            name="EventVideo",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                (
+                    "eventmedia_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        parent_link=True,
+                        primary_key=True,
+                        serialize=False,
+                        to="video.EventMedia",
+                    ),
+                ),
+                (
+                    "preview",
+                    imagekit.models.fields.ProcessedImageField(upload_to=Uuid4Upload),
+                ),
             ],
             options={
-                'abstract': False,
+                "ordering": ("-modified", "-created"),
+                "get_latest_by": "modified",
+                "abstract": False,
             },
-        ),
-        migrations.CreateModel(
-            name='PublishMedia',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-            ],
-            options={
-                'abstract': False,
-            },
-        ),
-        migrations.CreateModel(
-            name='PublishMediaScene',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('timestamp', models.PositiveIntegerField()),
-                ('image', imagekit.models.fields.ProcessedImageField(upload_to=Uuid4Upload)),
-                ('words', django.contrib.postgres.fields.ArrayField(base_field=models.CharField(blank=True, max_length=512), default=list, size=None)),
-            ],
-        ),
-        migrations.CreateModel(
-            name='DASHAudio',
-            fields=[
-                ('publishmedia_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='video.PublishMedia')),
-                ('path', models.TextField()),
-            ],
-            options={
-                'abstract': False,
-            },
-            bases=('video.publishmedia', models.Model),
-        ),
-        migrations.CreateModel(
-            name='DASHPublish',
-            fields=[
-                ('publish_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='video.Publish')),
-                ('audio', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='video.DASHAudio')),
-            ],
-            options={
-                'abstract': False,
-            },
-            bases=('video.publish',),
-        ),
-        migrations.CreateModel(
-            name='DASHVideo',
-            fields=[
-                ('publishmedia_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='video.PublishMedia')),
-                ('preview', imagekit.models.fields.ProcessedImageField(upload_to=Uuid4Upload)),
-            ],
-            options={
-                'abstract': False,
-            },
-            bases=('video.publishmedia',),
-        ),
-        migrations.CreateModel(
-            name='EventAudio',
-            fields=[
-                ('eventmedia_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='video.EventMedia')),
-            ],
-            options={
-                'ordering': ('-modified', '-created'),
-                'get_latest_by': 'modified',
-                'abstract': False,
-            },
-            bases=('video.eventmedia',),
-        ),
-        migrations.CreateModel(
-            name='EventVideo',
-            fields=[
-                ('eventmedia_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='video.EventMedia')),
-                ('preview', imagekit.models.fields.ProcessedImageField(upload_to=Uuid4Upload)),
-            ],
-            options={
-                'ordering': ('-modified', '-created'),
-                'get_latest_by': 'modified',
-                'abstract': False,
-            },
-            bases=('video.eventmedia',),
+            bases=("video.eventmedia",),
         ),
         migrations.AddField(
-            model_name='publishmediascene',
-            name='media',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='video.PublishMedia'),
+            model_name="publishmediascene",
+            name="media",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to="video.PublishMedia"
+            ),
         ),
         migrations.AddField(
-            model_name='publishmedia',
-            name='eventmedia',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='video.EventMedia'),
+            model_name="publishmedia",
+            name="eventmedia",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to="video.EventMedia"
+            ),
         ),
         migrations.AddField(
-            model_name='publishmedia',
-            name='polymorphic_ctype',
-            field=models.ForeignKey(editable=False, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='polymorphic_video.publishmedia_set+', to='contenttypes.ContentType'),
+            model_name="publishmedia",
+            name="polymorphic_ctype",
+            field=models.ForeignKey(
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="polymorphic_video.publishmedia_set+",
+                to="contenttypes.ContentType",
+            ),
         ),
         migrations.AddField(
-            model_name='publish',
-            name='event',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='video.Event'),
+            model_name="publish",
+            name="event",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to="video.Event"
+            ),
         ),
         migrations.AddField(
-            model_name='publish',
-            name='polymorphic_ctype',
-            field=models.ForeignKey(editable=False, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='polymorphic_video.publish_set+', to='contenttypes.ContentType'),
+            model_name="publish",
+            name="polymorphic_ctype",
+            field=models.ForeignKey(
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="polymorphic_video.publish_set+",
+                to="contenttypes.ContentType",
+            ),
         ),
         migrations.AddField(
-            model_name='eventmedia',
-            name='event',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='video.Event'),
+            model_name="eventmedia",
+            name="event",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to="video.Event"
+            ),
         ),
         migrations.AddField(
-            model_name='eventmedia',
-            name='polymorphic_ctype',
-            field=models.ForeignKey(editable=False, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='polymorphic_video.eventmedia_set+', to='contenttypes.ContentType'),
+            model_name="eventmedia",
+            name="polymorphic_ctype",
+            field=models.ForeignKey(
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="polymorphic_video.eventmedia_set+",
+                to="contenttypes.ContentType",
+            ),
         ),
         migrations.AddField(
-            model_name='dashvideovariant',
-            name='video',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='video.DASHVideo'),
+            model_name="dashvideovariant",
+            name="video",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to="video.DASHVideo"
+            ),
         ),
         migrations.AddField(
-            model_name='dashpublish',
-            name='presenter',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='video.DASHVideo'),
+            model_name="dashpublish",
+            name="presenter",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="+",
+                to="video.DASHVideo",
+            ),
         ),
         migrations.AddField(
-            model_name='dashpublish',
-            name='slides',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='video.DASHVideo'),
+            model_name="dashpublish",
+            name="slides",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="+",
+                to="video.DASHVideo",
+            ),
         ),
     ]

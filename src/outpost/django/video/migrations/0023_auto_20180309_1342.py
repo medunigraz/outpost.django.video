@@ -9,20 +9,24 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('campusonline', '0012_event'),
-        ('video', '0022_recording_start'),
-    ]
+    dependencies = [("campusonline", "0012_event"), ("video", "0022_recording_start")]
 
     operations = [
         migrations.AddField(
-            model_name='recording',
-            name='course_group_term',
-            field=models.ForeignKey(blank=True, db_constraint=False, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='campusonline.CourseGroupTerm'),
+            model_name="recording",
+            name="course_group_term",
+            field=models.ForeignKey(
+                blank=True,
+                db_constraint=False,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="+",
+                to="campusonline.CourseGroupTerm",
+            ),
         ),
         migrations.AddField(
-            model_name='recording',
-            name='metadata',
+            model_name="recording",
+            name="metadata",
             field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, null=True),
         ),
     ]

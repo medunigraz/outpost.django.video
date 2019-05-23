@@ -13,115 +13,166 @@ from ...base.utils import Uuid4Upload
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0018_recorder_retention'),
-    ]
+    dependencies = [("video", "0018_recorder_retention")]
 
     operations = [
         migrations.AlterModelOptions(
-            name='export',
-            options={'base_manager_name': 'base_objects'},
+            name="export", options={"base_manager_name": "base_objects"}
         ),
         migrations.AlterModelOptions(
-            name='input',
-            options={'base_manager_name': 'objects'},
+            name="input", options={"base_manager_name": "objects"}
         ),
         migrations.AlterModelOptions(
-            name='publish',
-            options={'base_manager_name': 'objects'},
+            name="publish", options={"base_manager_name": "objects"}
         ),
         migrations.AlterModelOptions(
-            name='publishmedia',
-            options={'base_manager_name': 'objects'},
+            name="publishmedia", options={"base_manager_name": "objects"}
         ),
         migrations.AlterModelOptions(
-            name='recordingasset',
-            options={'ordering': ('-created',), 'permissions': (('view_recordingasset', 'View Recording Asset'),)},
+            name="recordingasset",
+            options={
+                "ordering": ("-created",),
+                "permissions": (("view_recordingasset", "View Recording Asset"),),
+            },
         ),
         migrations.AlterModelManagers(
-            name='export',
+            name="export",
             managers=[
-                ('objects', django.db.models.manager.Manager()),
-                ('base_objects', django.db.models.manager.Manager()),
+                ("objects", django.db.models.manager.Manager()),
+                ("base_objects", django.db.models.manager.Manager()),
             ],
         ),
         migrations.AlterModelManagers(
-            name='sidebysideexport',
+            name="sidebysideexport",
             managers=[
-                ('objects', django.db.models.manager.Manager()),
-                ('base_objects', django.db.models.manager.Manager()),
+                ("objects", django.db.models.manager.Manager()),
+                ("base_objects", django.db.models.manager.Manager()),
             ],
         ),
         migrations.AlterModelManagers(
-            name='zipstreamexport',
+            name="zipstreamexport",
             managers=[
-                ('objects', django.db.models.manager.Manager()),
-                ('base_objects', django.db.models.manager.Manager()),
+                ("objects", django.db.models.manager.Manager()),
+                ("base_objects", django.db.models.manager.Manager()),
             ],
         ),
-        migrations.RemoveField(
-            model_name='recordingasset',
-            name='description',
-        ),
+        migrations.RemoveField(model_name="recordingasset", name="description"),
         migrations.AddField(
-            model_name='recordingasset',
-            name='created',
-            field=django_extensions.db.fields.CreationDateTimeField(auto_now_add=True, default=django.utils.timezone.now, verbose_name='created'),
+            model_name="recordingasset",
+            name="created",
+            field=django_extensions.db.fields.CreationDateTimeField(
+                auto_now_add=True,
+                default=django.utils.timezone.now,
+                verbose_name="created",
+            ),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='recordingasset',
-            name='modified',
-            field=django_extensions.db.fields.ModificationDateTimeField(auto_now=True, verbose_name='modified'),
+            model_name="recordingasset",
+            name="modified",
+            field=django_extensions.db.fields.ModificationDateTimeField(
+                auto_now=True, verbose_name="modified"
+            ),
         ),
         migrations.AddField(
-            model_name='recordingasset',
-            name='preview',
-            field=imagekit.models.fields.ProcessedImageField(blank=True, null=True, upload_to=Uuid4Upload),
+            model_name="recordingasset",
+            name="preview",
+            field=imagekit.models.fields.ProcessedImageField(
+                blank=True, null=True, upload_to=Uuid4Upload
+            ),
         ),
         migrations.AlterField(
-            model_name='dashpublish',
-            name='audio',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='video.DASHAudio'),
+            model_name="dashpublish",
+            name="audio",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="+",
+                to="video.DASHAudio",
+            ),
         ),
         migrations.AlterField(
-            model_name='dashpublish',
-            name='presenter',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='video.DASHVideo'),
+            model_name="dashpublish",
+            name="presenter",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="+",
+                to="video.DASHVideo",
+            ),
         ),
         migrations.AlterField(
-            model_name='dashpublish',
-            name='slides',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='video.DASHVideo'),
+            model_name="dashpublish",
+            name="slides",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="+",
+                to="video.DASHVideo",
+            ),
         ),
         migrations.AlterField(
-            model_name='epiphan',
-            name='server',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='video.Server'),
+            model_name="epiphan",
+            name="server",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="+",
+                to="video.Server",
+            ),
         ),
         migrations.AlterField(
-            model_name='publish',
-            name='event',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='video.Event'),
+            model_name="publish",
+            name="event",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="video.Event",
+            ),
         ),
         migrations.AlterField(
-            model_name='publishmedia',
-            name='eventmedia',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='video.EventMedia'),
+            model_name="publishmedia",
+            name="eventmedia",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="video.EventMedia",
+            ),
         ),
         migrations.AlterField(
-            model_name='publishmediascene',
-            name='media',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='video.PublishMedia'),
+            model_name="publishmediascene",
+            name="media",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="video.PublishMedia",
+            ),
         ),
         migrations.AlterField(
-            model_name='recorder',
-            name='room',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='geo.Room'),
+            model_name="recorder",
+            name="room",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="geo.Room",
+            ),
         ),
         migrations.AlterField(
-            model_name='recording',
-            name='recorder',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='video.Recorder'),
+            model_name="recording",
+            name="recorder",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="video.Recorder",
+            ),
         ),
     ]

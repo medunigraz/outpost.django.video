@@ -9,23 +9,34 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('campusonline', '0012_event'),
-        ('video', '0023_auto_20180309_1342'),
+        ("campusonline", "0012_event"),
+        ("video", "0023_auto_20180309_1342"),
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='recording',
-            name='course_group_term',
+        migrations.RemoveField(model_name="recording", name="course_group_term"),
+        migrations.AddField(
+            model_name="recording",
+            name="course",
+            field=models.ForeignKey(
+                blank=True,
+                db_constraint=False,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="+",
+                to="campusonline.Course",
+            ),
         ),
         migrations.AddField(
-            model_name='recording',
-            name='course',
-            field=models.ForeignKey(blank=True, db_constraint=False, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='campusonline.Course'),
-        ),
-        migrations.AddField(
-            model_name='recording',
-            name='presenter',
-            field=models.ForeignKey(blank=True, db_constraint=False, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='campusonline.Person'),
+            model_name="recording",
+            name="presenter",
+            field=models.ForeignKey(
+                blank=True,
+                db_constraint=False,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="+",
+                to="campusonline.Person",
+            ),
         ),
     ]

@@ -9,32 +9,42 @@ from ...base.utils import Uuid4Upload
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0011_auto_20170908_1747'),
-    ]
+    dependencies = [("video", "0011_auto_20170908_1747")]
 
     operations = [
         migrations.CreateModel(
-            name='RecordingAsset',
+            name="RecordingAsset",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=128)),
-                ('description', models.TextField(blank=True, null=True)),
-                ('data', models.FileField(upload_to=Uuid4Upload)),
-                ('mimetype', models.TextField()),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=128)),
+                ("description", models.TextField(blank=True, null=True)),
+                ("data", models.FileField(upload_to=Uuid4Upload)),
+                ("mimetype", models.TextField()),
             ],
         ),
         migrations.AlterModelOptions(
-            name='recorder',
-            options={'ordering': ('name', 'hostname'), 'permissions': (('view_recorder', 'View Recorder'),)},
+            name="recorder",
+            options={
+                "ordering": ("name", "hostname"),
+                "permissions": (("view_recorder", "View Recorder"),),
+            },
         ),
         migrations.AlterModelOptions(
-            name='recording',
-            options={'ordering': ('-created',)},
+            name="recording", options={"ordering": ("-created",)}
         ),
         migrations.AddField(
-            model_name='recordingasset',
-            name='recording',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='video.Recording'),
+            model_name="recordingasset",
+            name="recording",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to="video.Recording"
+            ),
         ),
     ]

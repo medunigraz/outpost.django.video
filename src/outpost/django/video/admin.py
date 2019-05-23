@@ -23,51 +23,31 @@ class EpiphanSourceInlineAdmin(admin.TabularInline):
 
 @admin.register(models.Server)
 class ServerAdmin(admin.ModelAdmin):
-    list_display = (
-        '__str__',
-        'fingerprint',
-        'active',
-    )
-    list_filter = (
-    )
-    search_fields = (
-        'hostname',
-        'port',
-    )
-    readonly_fields = (
-        'fingerprint',
-    )
+    list_display = ("__str__", "fingerprint", "active")
+    list_filter = ()
+    search_fields = ("hostname", "port")
+    readonly_fields = ("fingerprint",)
 
     def fingerprint(self, obj):
-        return '<code>{}</code>'.format(obj.fingerprint())
-    fingerprint.short_description = u'SSH host key fingerprint'
+        return "<code>{}</code>".format(obj.fingerprint())
+
+    fingerprint.short_description = u"SSH host key fingerprint"
     fingerprint.allow_tags = True
 
 
 @admin.register(models.Epiphan)
 class EpiphanAdmin(admin.ModelAdmin):
     list_display = (
-        '__str__',
-        'hostname',
-        'server',
-        'fingerprint',
-        'online',
-        'provision',
+        "__str__",
+        "hostname",
+        "server",
+        "fingerprint",
+        "online",
+        "provision",
     )
-    list_filter = (
-        'server',
-        'online',
-        'provision',
-    )
-    search_fields = (
-        'name',
-        'hostname',
-        'fingerprint',
-    )
-    readonly_fields = (
-        'fingerprint',
-        'private_key',
-    )
+    list_filter = ("server", "online", "provision")
+    search_fields = ("name", "hostname", "fingerprint")
+    readonly_fields = ("fingerprint", "private_key")
     inlines = (
         EpiphanChannelInlineAdmin,
         EpiphanSourceInlineAdmin,
@@ -76,13 +56,15 @@ class EpiphanAdmin(admin.ModelAdmin):
     )
 
     def fingerprint(self, obj):
-        return '<code>{}</code>'.format(obj.fingerprint())
-    fingerprint.short_description = u'SSH public key fingerprint'
+        return "<code>{}</code>".format(obj.fingerprint())
+
+    fingerprint.short_description = u"SSH public key fingerprint"
     fingerprint.allow_tags = True
 
     def private_key(self, obj):
-        return '<pre>{}</pre>'.format(obj.private_key())
-    private_key.short_description = u'SSH private key'
+        return "<pre>{}</pre>".format(obj.private_key())
+
+    private_key.short_description = u"SSH private key"
     private_key.allow_tags = True
 
 
@@ -104,18 +86,10 @@ class EpiphanAdmin(admin.ModelAdmin):
 
 @admin.register(models.Recording)
 class RecordingAdmin(admin.ModelAdmin):
-    list_display = (
-        'pk',
-        'recorder',
-        'created',
-    )
-    date_hierarchy = 'created'
-    list_filter = (
-        'recorder',
-    )
-    inlines = (
-        RecordingAssetInlineAdmin,
-    )
+    list_display = ("pk", "recorder", "created")
+    date_hierarchy = "created"
+    list_filter = ("recorder",)
+    inlines = (RecordingAssetInlineAdmin,)
 
 
 @admin.register(models.PanasonicCamera)

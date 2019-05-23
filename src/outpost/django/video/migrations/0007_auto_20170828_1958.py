@@ -7,19 +7,13 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0006_epiphan_provision'),
-    ]
+    dependencies = [("video", "0006_epiphan_provision")]
 
     operations = [
         migrations.RenameField(
-            model_name='recorder',
-            old_name='active',
-            new_name='enabled',
+            model_name="recorder", old_name="active", new_name="enabled"
         ),
         migrations.RenameField(
-            model_name='server',
-            old_name='active',
-            new_name='enabled',
+            model_name="server", old_name="active", new_name="enabled"
         ),
     ]

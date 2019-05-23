@@ -9,24 +9,31 @@ import django_extensions.db.fields
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0015_auto_20171117_1417'),
-    ]
+    dependencies = [("video", "0015_auto_20171117_1417")]
 
     operations = [
         migrations.AlterModelOptions(
-            name='export',
-            options={'get_latest_by': 'modified', 'ordering': ('-modified', '-created')},
+            name="export",
+            options={
+                "get_latest_by": "modified",
+                "ordering": ("-modified", "-created"),
+            },
         ),
         migrations.AddField(
-            model_name='export',
-            name='created',
-            field=django_extensions.db.fields.CreationDateTimeField(auto_now_add=True, default=django.utils.timezone.now, verbose_name='created'),
+            model_name="export",
+            name="created",
+            field=django_extensions.db.fields.CreationDateTimeField(
+                auto_now_add=True,
+                default=django.utils.timezone.now,
+                verbose_name="created",
+            ),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='export',
-            name='modified',
-            field=django_extensions.db.fields.ModificationDateTimeField(auto_now=True, verbose_name='modified'),
+            model_name="export",
+            name="modified",
+            field=django_extensions.db.fields.ModificationDateTimeField(
+                auto_now=True, verbose_name="modified"
+            ),
         ),
     ]

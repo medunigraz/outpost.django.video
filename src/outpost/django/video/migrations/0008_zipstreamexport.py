@@ -9,20 +9,26 @@ from ...base.utils import Uuid4Upload
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0007_auto_20170828_1958'),
-    ]
+    dependencies = [("video", "0007_auto_20170828_1958")]
 
     operations = [
         migrations.CreateModel(
-            name='ZipStreamExport',
+            name="ZipStreamExport",
             fields=[
-                ('export_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='video.Export')),
-                ('data', models.FileField(upload_to=Uuid4Upload)),
+                (
+                    "export_ptr",
+                    models.OneToOneField(
+                        auto_created=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        parent_link=True,
+                        primary_key=True,
+                        serialize=False,
+                        to="video.Export",
+                    ),
+                ),
+                ("data", models.FileField(upload_to=Uuid4Upload)),
             ],
-            options={
-                'verbose_name': 'Zip-Stream',
-            },
-            bases=('video.export',),
-        ),
+            options={"verbose_name": "Zip-Stream"},
+            bases=("video.export",),
+        )
     ]

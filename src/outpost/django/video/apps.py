@@ -4,16 +4,15 @@ from django.utils.translation import ugettext_lazy as _
 
 
 class DefaultConfig(AppConfig):
-    name = 'outpost.django.video'
-    verbose_name = _('Video')
+    name = "outpost.django.video"
+    verbose_name = _("Video")
 
     def ready(self):
         from .signals import RecordingPermissionReceiver
+
         post_save.connect(
-            RecordingPermissionReceiver.user,
-            sender='guardian.UserObjectPermission'
+            RecordingPermissionReceiver.user, sender="guardian.UserObjectPermission"
         )
         post_save.connect(
-            RecordingPermissionReceiver.group,
-            sender='guardian.GroupObjectPermission'
+            RecordingPermissionReceiver.group, sender="guardian.GroupObjectPermission"
         )

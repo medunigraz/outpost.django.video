@@ -9,53 +9,87 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0001_initial'),
-    ]
+    dependencies = [("video", "0001_initial")]
 
     operations = [
         migrations.CreateModel(
-            name='Broadcast',
+            name="Broadcast",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('start', models.DateTimeField(auto_now_add=True)),
-                ('end', models.DateTimeField(editable=False, null=True)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("start", models.DateTimeField(auto_now_add=True)),
+                ("end", models.DateTimeField(editable=False, null=True)),
             ],
         ),
         migrations.CreateModel(
-            name='Stream',
+            name="Stream",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=128)),
-                ('enabled', models.BooleanField(default=True)),
-                ('active', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='video.Broadcast')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=128)),
+                ("enabled", models.BooleanField(default=True)),
+                (
+                    "active",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="+",
+                        to="video.Broadcast",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='Token',
+            name="Token",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('value', models.CharField(max_length=22)),
-                ('stream', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='video.Stream')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("value", models.CharField(max_length=22)),
+                (
+                    "stream",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE, to="video.Stream"
+                    ),
+                ),
             ],
         ),
         migrations.AlterModelOptions(
-            name='sidebysideexport',
-            options={'verbose_name': 'Side-by-Side'},
+            name="sidebysideexport", options={"verbose_name": "Side-by-Side"}
         ),
         migrations.AlterField(
-            model_name='recording',
-            name='info',
+            model_name="recording",
+            name="info",
             field=django.contrib.postgres.fields.jsonb.JSONField(),
         ),
         migrations.AlterField(
-            model_name='server',
-            name='key',
-            field=models.BinaryField(),
+            model_name="server", name="key", field=models.BinaryField()
         ),
         migrations.AddField(
-            model_name='broadcast',
-            name='stream',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='video.Stream'),
+            model_name="broadcast",
+            name="stream",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to="video.Stream"
+            ),
         ),
     ]

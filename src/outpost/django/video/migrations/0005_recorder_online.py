@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0004_auto_20170820_2011'),
-    ]
+    dependencies = [("video", "0004_auto_20170820_2011")]
 
     operations = [
         migrations.AddField(
-            model_name='recorder',
-            name='online',
+            model_name="recorder",
+            name="online",
             field=models.BooleanField(default=False),
-        ),
+        )
     ]

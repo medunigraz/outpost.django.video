@@ -7,17 +7,9 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0029_polymorphic_ctype_id'),
-    ]
+    dependencies = [("video", "0029_polymorphic_ctype_id")]
 
     operations = [
-        migrations.RemoveField(
-            model_name='epiphansource',
-            name='audio',
-        ),
-        migrations.RemoveField(
-            model_name='epiphansource',
-            name='video',
-        ),
+        migrations.RemoveField(model_name="epiphansource", name="audio"),
+        migrations.RemoveField(model_name="epiphansource", name="video"),
     ]

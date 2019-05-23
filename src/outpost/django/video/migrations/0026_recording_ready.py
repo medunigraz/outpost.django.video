@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0025_recording_title'),
-    ]
+    dependencies = [("video", "0025_recording_title")]
 
     operations = [
         migrations.AddField(
-            model_name='recording',
-            name='ready',
+            model_name="recording",
+            name="ready",
             field=models.BooleanField(default=False),
-        ),
+        )
     ]

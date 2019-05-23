@@ -7,29 +7,22 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0010_auto_20170908_1007'),
-    ]
+    dependencies = [("video", "0010_auto_20170908_1007")]
 
     operations = [
         migrations.AlterModelOptions(
-            name='epiphanchannel',
-            options={'ordering': ('name',)},
+            name="epiphanchannel", options={"ordering": ("name",)}
         ),
         migrations.AlterModelOptions(
-            name='epiphansource',
-            options={'ordering': ('number',)},
+            name="epiphansource", options={"ordering": ("number",)}
         ),
         migrations.AlterModelOptions(
-            name='recorder',
-            options={'ordering': ('name', 'hostname')},
+            name="recorder", options={"ordering": ("name", "hostname")}
         ),
         migrations.AlterModelOptions(
-            name='recording',
-            options={'ordering': ('created',)},
+            name="recording", options={"ordering": ("created",)}
         ),
         migrations.AlterModelOptions(
-            name='server',
-            options={'ordering': ('hostname', 'port')},
+            name="server", options={"ordering": ("hostname", "port")}
         ),
     ]

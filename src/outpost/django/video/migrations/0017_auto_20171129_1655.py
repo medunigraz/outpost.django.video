@@ -7,13 +7,14 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0016_auto_20171122_1521'),
-    ]
+    dependencies = [("video", "0016_auto_20171122_1521")]
 
     operations = [
         migrations.AlterModelOptions(
-            name='recording',
-            options={'ordering': ('-created',), 'permissions': (('view_recording', 'View Recording'),)},
-        ),
+            name="recording",
+            options={
+                "ordering": ("-created",),
+                "permissions": (("view_recording", "View Recording"),),
+            },
+        )
     ]
