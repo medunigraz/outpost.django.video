@@ -1,0 +1,13 @@
+Dear {{ user }},
+
+a new recording has been uploaded from {{recording.recorder }} on {{ recording.created }}:
+
+Duration: {{ recording.info.format.duration }}s
+Size: {{ recording.info.format.size|filesizeformat }}
+
+The recording is available at this location:
+
+{{ url }}
+
+Yours,
+{{ site.name }}
