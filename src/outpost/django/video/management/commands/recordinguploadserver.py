@@ -7,7 +7,6 @@ from functools import partial, wraps
 from pathlib import Path
 
 import asyncssh
-import sdnotify
 from celery import chain
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
@@ -230,8 +229,6 @@ class Command(BaseCommand):
             cond["pk__in"] = options["server"]
 
         tasks = [start_server(s) for s in Server.objects.filter(**cond)]
-        n = sdnotify.SystemdNotifier()
-        n.notify("READY=1")
         try:
             loop.run_until_complete(asyncio.gather(*tasks))
         except (OSError, asyncssh.Error) as exc:
