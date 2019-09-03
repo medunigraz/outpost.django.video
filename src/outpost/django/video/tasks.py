@@ -9,7 +9,6 @@ from celery import states
 from celery.exceptions import Ignore
 from celery.schedules import crontab
 from celery.task import PeriodicTask, Task
-from django.conf import settings
 from django.contrib.sites.models import Site
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
@@ -25,8 +24,8 @@ from outpost.django.campusonline.serializers import (
     RoomSerializer,
 )
 
+from .conf import settings
 from .utils import FFProbeProcess
-
 from .models import (  # EventAudio,; EventVideo,
     Epiphan,
     EpiphanSource,
@@ -160,9 +159,7 @@ class NotifyRecordingTask(MaintainanceTaskMixin, Task):
                         "recording": rec,
                         "user": user,
                         "site": Site.objects.get_current(),
-                        "url": settings.OUTPOST["crates_recording_url"].format(
-                            pk=rec.pk
-                        ),
+                        "url": settings.VIDEO_CRATES_RECORDING_URL.format(pk=rec.pk),
                     },
                 ),
                 settings.SERVER_EMAIL,
@@ -173,7 +170,7 @@ class NotifyRecordingTask(MaintainanceTaskMixin, Task):
 
 class EpiphanProvisionTask(Task):
     def run(self, pk, **kwargs):
-        if not settings.OUTPOST.get("epiphan_provisioning"):
+        if not settings.VIDEO_EPIPHAN_PROVISIONING:
             logger.warn("Epiphan provisioning disabled!")
             return
         self.epiphan = Epiphan.objects.get(pk=pk)
