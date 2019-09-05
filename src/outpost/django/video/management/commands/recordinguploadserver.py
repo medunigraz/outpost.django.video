@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from ...models import Epiphan, EpiphanChannel, EpiphanRecording, Server
 from ...tasks import MetadataRecordingTask, NotifyRecordingTask, ProcessRecordingTask
+from ...conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +220,8 @@ class Command(BaseCommand):
                 x11_forwarding=False,
                 agent_forwarding=False,
                 login_timeout=10,
+                encryption_algs=settings.VIDEO_RECORDING_UPLOAD_SERVER_ENCRYPTION,
+                mac_algs=settings.VIDEO_RECORDING_UPLOAD_SERVER_MAC,
             )
             while True:
                 server.ping()
