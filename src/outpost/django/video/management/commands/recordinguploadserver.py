@@ -7,13 +7,13 @@ from functools import partial, wraps
 from pathlib import Path
 
 import asyncssh
-from celery import chain
+from celery import chain, group
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from ...models import Epiphan, EpiphanChannel, EpiphanRecording, Server
-from ...tasks import MetadataRecordingTask, NotifyRecordingTask, ProcessRecordingTask
+from ...tasks import MetadataRecordingTask, NotifyRecordingTask, ProcessRecordingTask, AWSTranscribeRecordingTask, AWSTranscribeResultRecordingTask
 from ...conf import settings
 
 logger = logging.getLogger(__name__)
@@ -144,6 +144,12 @@ class SFTPServer(asyncssh.SFTPServer):
         chain(
             ProcessRecordingTask().si(rec.pk),
             MetadataRecordingTask().si(rec.pk),
+            group(
+                chain(
+                    AWSTranscribeRecordingTask().si(rec.pk),
+                    AWSTranscribeResultRecordingTask().s(rec.pk)
+                ),
+            ),
             NotifyRecordingTask().si(rec.pk),
         ).delay()
         logger.debug("Done starting post-upload task chain")

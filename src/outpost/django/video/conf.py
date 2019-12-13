@@ -19,6 +19,7 @@ class VideoAppConf(AppConf):
         "hmac-sha2-256",
         "hmac-sha2-512",
     ]
+    TRANSCRIBE_BUCKET = None
 
     class Meta:
         prefix = "video"

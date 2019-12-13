@@ -5,9 +5,13 @@ import re
 import subprocess
 from base64 import b64encode
 from datetime import timedelta
-from functools import partial
+from dateutil.relativedelta import relativedelta
+from functools import partial, reduce
+from math import ceil
+from more_itertools import chunked, split_after, divide
 from hashlib import sha256
 from tempfile import NamedTemporaryFile, TemporaryDirectory
+from webvtt import WebVTT, Caption
 from zipfile import ZipFile
 
 import asyncssh
@@ -421,6 +425,73 @@ class RecordingAsset(TimeStampedModel):
         self.preview.delete(False)
 
 
+class Transcript(PolymorphicModel):
+    recording = models.ForeignKey("Recording", on_delete=models.CASCADE)
+
+
+class AWSTranscript(Transcript):
+    created = models.DateTimeField(auto_now_add=True)
+    data = JSONField(blank=True, null=True)
+    duration = models.DurationField()
+
+    @staticmethod
+    def timestamp(sec):
+        t = relativedelta(
+            microseconds=float(sec*(10**6))
+        )
+        return f"{t.hours:03.0f}:{t.minutes:02.0f}:{t.seconds:02.0f}.{t.microseconds/1000:03.0f}"
+
+    @staticmethod
+    def content(a, v):
+        c = max(
+            v.get('alternatives'),
+            key=lambda k: float(k.get('confidence'))
+        ).get('content')
+        if not a:
+            return c
+        if v.get('type') == 'punctuation':
+            return f"{a}{c}"
+        return f"{a} {c}"
+
+    def vtt(self):
+        items = self.data.get('results').get('items')
+        sentences = split_after(
+            items,
+            lambda i: i.get('type') == 'punctuation'
+        )
+        output = io.StringIO()
+        vtt = WebVTT()
+        for s in sentences:
+            csize = ceil(len(s) / 12)
+            for p in divide(csize, s):
+                lst = list(p)
+                text = reduce(self.content, lst, None)
+                pro = list(filter(
+                    lambda i: i.get('type') == 'pronunciation',
+                    lst
+                ))
+                start = self.timestamp(
+                    min(
+                        map(
+                            lambda i: float(i.get('start_time')),
+                            pro
+                        )
+                    )
+                )
+                end = self.timestamp(
+                    max(
+                        map(
+                            lambda i: float(i.get('end_time')),
+                            pro
+                        )
+                    )
+                )
+                caption = Caption(start, end, map(' '.join, divide(2, text.split())))
+                vtt.captions.append(caption)
+        vtt.write(output)
+        return output
+
+
 class Export(TimeStampedModel, PolymorphicModel):
     recording = models.ForeignKey("Recording", on_delete=models.CASCADE)
 
@@ -508,6 +579,28 @@ class ZipStreamExport(Export):
                         arc.write(f, os.path.basename(f))
                         os.remove(f)
                 self.data.save(output.name, File(output.file))
+
+    def pre_delete(self, *args, **kwargs):
+        self.data.delete(False)
+
+
+@signal_connect
+class VTTExport(Export):
+    data = models.FileField(upload_to=Uuid4Upload)
+
+    class Meta:
+        verbose_name = "VTT Subtitles"
+
+    def process(self, notify):
+        output = io.BytesIO()
+        with ZipFile(output, "w") as arc:
+            for transcript in self.recording.transcript_set.all():
+                vtt = transcript.vtt()
+                arc.writestr(
+                    f"{transcript.__class__.__name__}.vtt",
+                    vtt.getvalue()
+                )
+        self.data.save(f"transcript-{self.recording.pk}.zip", File(output))
 
     def pre_delete(self, *args, **kwargs):
         self.data.delete(False)

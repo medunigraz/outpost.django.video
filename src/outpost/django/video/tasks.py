@@ -1,8 +1,12 @@
 import logging
 import re
 import socket
+import boto3
+import requests
+import os.path
 from datetime import timedelta
 from urllib.parse import urljoin
+from tempfile import NamedTemporaryFile
 
 from bs4 import BeautifulSoup
 from celery import states
@@ -17,6 +21,7 @@ from django.utils.translation import ugettext_lazy as _
 from pint import UnitRegistry
 
 from outpost.django.base.tasks import MaintainanceTaskMixin
+from outpost.django.base.utils import Process
 from outpost.django.campusonline.models import Course, CourseGroupTerm, Person
 from outpost.django.campusonline.serializers import (
     CourseSerializer,
@@ -137,6 +142,105 @@ class MetadataRecordingTask(MaintainanceTaskMixin, Task):
         except Person.DoesNotExist as e:
             logger.warn(f"No Person found: {e}")
         return (cgt.get("title", None), course, person)
+
+
+class AWSTranscribeRecordingTask(MaintainanceTaskMixin, Task):
+    ignore_result = False
+    session = boto3.Session(
+        aws_access_key_id=settings.BASE_AWS_ACCESS_KEY,
+        aws_secret_access_key=settings.BASE_AWS_SECRET_ACCESS_KEY,
+        region_name=settings.BASE_AWS_REGION_NAME,
+    )
+
+    def run(self, pk, **kwargs):
+        logger.debug(f"Transcribing audio: {pk}")
+        rec = Recording.objects.get(pk=pk)
+        if not os.path.exists(rec.online.path):
+            logger.error(f"Could not read {rec.online.path}")
+            return
+        s3 = self.session.resource("s3")
+        bucket = s3.Bucket(settings.VIDEO_TRANSCRIBE_BUCKET)
+        filename = f"{self.request.id}.flac"
+        with NamedTemporaryFile(suffix=f".{filename}", delete=False) as audio:
+            p = Process(
+                "ffmpeg",
+                "-y",
+                "-i",
+                rec.online.path,
+                "-filter_complex",
+                "[0:1][0:3] amerge=inputs=2",
+                "-vn",
+                "-c:a",
+                "flac",
+                audio.name
+            )
+            if p.run() != 0:
+                logger.error("FFMPEG failed to extract audio from {rec.online.path}")
+                return
+            bucket.upload_file(audio.name, filename)
+        transcribe = self.session.client("transcribe")
+        transcribe.start_transcription_job(
+            TranscriptionJobName=self.request.id,
+            LanguageCode="de-DE",
+            MediaFormat="flac",
+            Media={
+                "MediaFileUri": f"https://{bucket.name}.s3.{self.session.region_name}.amazonaws.com/{filename}"
+            },
+        )
+        return self.request.id
+
+
+class AWSTranscribeResultRecordingTask(MaintainanceTaskMixin, Task):
+    ignore_result = False
+    default_retry_delay = 120
+    max_retries = 120
+    session = boto3.Session(
+        aws_access_key_id=settings.BASE_AWS_ACCESS_KEY,
+        aws_secret_access_key=settings.BASE_AWS_SECRET_ACCESS_KEY,
+        region_name=settings.BASE_AWS_REGION_NAME,
+    )
+
+    def run(self, job, pk, **kwargs):
+        from .models import AWSTranscript
+        logger.debug(f"Fetching transcription result for {pk} from {job}")
+        rec = Recording.objects.get(pk=pk)
+        transcribe = self.session.client("transcribe")
+        try:
+            result = transcribe.get_transcription_job(TranscriptionJobName=job).get('TranscriptionJob')
+        except Exception as e:
+            logger.error(f"Could not fetch transcription job: {e}")
+            raise self.retry()
+        status = result.get('TranscriptionJobStatus')
+        if status != 'COMPLETED':
+            logger.debug(f"Job not yet completed: {job}")
+            raise self.retry()
+        url = result.get('Transcript').get('TranscriptFileUri')
+        duration = result.get('CompletionTime') - result.get('CreationTime')
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Could not fetch transcription results for {job}: {e}")
+            raise self.retry()
+        transcript, created = AWSTranscript.objects.update_or_create(
+            recording=rec,
+            defaults={
+                'data': response.json(),
+                'duration': duration,
+            }
+        )
+        if created:
+            logger.info(f"Created new transcription for {rec}")
+        else:
+            logger.info(f"Updated transcription for {rec}")
+        s3 = self.session.client("s3")
+        logger.debug(f"Removing audio file from S3 bucket")
+        s3.delete_object(
+            Bucket=settings.VIDEO_TRANSCRIBE_BUCKET,
+            Key=f"{job}.flac"
+        )
+        logger.debug(f"Removing transcription job")
+        transcribe.delete_transcription_job(TranscriptionJobName=job)
 
 
 class NotifyRecordingTask(MaintainanceTaskMixin, Task):
