@@ -5,17 +5,15 @@ import re
 import subprocess
 from base64 import b64encode
 from datetime import timedelta
-from dateutil.relativedelta import relativedelta
 from functools import partial, reduce
-from math import ceil
-from more_itertools import chunked, split_after, divide
 from hashlib import sha256
+from math import ceil
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from webvtt import WebVTT, Caption
 from zipfile import ZipFile
 
 import asyncssh
 import requests
+from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.contrib.staticfiles import finders
@@ -29,13 +27,15 @@ from django_extensions.db.models import TimeStampedModel
 from imagekit.models import ProcessedImageField
 from imagekit.processors import ResizeToFill
 from memoize import delete_memoized, memoize
-from PIL import Image
-from polymorphic.models import PolymorphicModel
-from purl import URL
-
+from more_itertools import chunked, divide, split_after
+from ordered_model.models import OrderedModel
 from outpost.django.base.decorators import signal_connect
 from outpost.django.base.models import NetworkedDeviceMixin
 from outpost.django.base.utils import Process, Uuid4Upload
+from PIL import Image
+from polymorphic.models import PolymorphicModel
+from purl import URL
+from webvtt import Caption, WebVTT
 
 from .utils import FFMPEGProgressHandler
 
@@ -425,73 +425,6 @@ class RecordingAsset(TimeStampedModel):
         self.preview.delete(False)
 
 
-class Transcript(PolymorphicModel):
-    recording = models.ForeignKey("Recording", on_delete=models.CASCADE)
-
-
-class AWSTranscript(Transcript):
-    created = models.DateTimeField(auto_now_add=True)
-    data = JSONField(blank=True, null=True)
-    duration = models.DurationField()
-
-    @staticmethod
-    def timestamp(sec):
-        t = relativedelta(
-            microseconds=float(sec*(10**6))
-        )
-        return f"{t.hours:03.0f}:{t.minutes:02.0f}:{t.seconds:02.0f}.{t.microseconds/1000:03.0f}"
-
-    @staticmethod
-    def content(a, v):
-        c = max(
-            v.get('alternatives'),
-            key=lambda k: float(k.get('confidence'))
-        ).get('content')
-        if not a:
-            return c
-        if v.get('type') == 'punctuation':
-            return f"{a}{c}"
-        return f"{a} {c}"
-
-    def vtt(self):
-        items = self.data.get('results').get('items')
-        sentences = split_after(
-            items,
-            lambda i: i.get('type') == 'punctuation'
-        )
-        output = io.StringIO()
-        vtt = WebVTT()
-        for s in sentences:
-            csize = ceil(len(s) / 12)
-            for p in divide(csize, s):
-                lst = list(p)
-                text = reduce(self.content, lst, None)
-                pro = list(filter(
-                    lambda i: i.get('type') == 'pronunciation',
-                    lst
-                ))
-                start = self.timestamp(
-                    min(
-                        map(
-                            lambda i: float(i.get('start_time')),
-                            pro
-                        )
-                    )
-                )
-                end = self.timestamp(
-                    max(
-                        map(
-                            lambda i: float(i.get('end_time')),
-                            pro
-                        )
-                    )
-                )
-                caption = Caption(start, end, map(' '.join, divide(2, text.split())))
-                vtt.captions.append(caption)
-        vtt.write(output)
-        return output
-
-
 class Export(TimeStampedModel, PolymorphicModel):
     recording = models.ForeignKey("Recording", on_delete=models.CASCADE)
 
@@ -584,23 +517,12 @@ class ZipStreamExport(Export):
         self.data.delete(False)
 
 
-@signal_connect
-class VTTExport(Export):
-    data = models.FileField(upload_to=Uuid4Upload)
+class TranscribeLanguage(OrderedModel):
+    name = models.CharField(max_length=128)
+    code = models.CharField(max_length=32)
 
-    class Meta:
-        verbose_name = "VTT Subtitles"
+    class Meta(OrderedModel.Meta):
+        pass
 
-    def process(self, notify):
-        output = io.BytesIO()
-        with ZipFile(output, "w") as arc:
-            for transcript in self.recording.transcript_set.all():
-                vtt = transcript.vtt()
-                arc.writestr(
-                    f"{transcript.__class__.__name__}.vtt",
-                    vtt.getvalue()
-                )
-        self.data.save(f"transcript-{self.recording.pk}.zip", File(output))
-
-    def pre_delete(self, *args, **kwargs):
-        self.data.delete(False)
+    def __str__(self):
+        return f"{self.name} ({self.code})"

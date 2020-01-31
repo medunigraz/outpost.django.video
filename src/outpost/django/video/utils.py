@@ -1,9 +1,20 @@
+import io
 import json
 import logging
 import math
 import re
 import subprocess
-from functools import partial
+from functools import partial, reduce
+from math import ceil
+
+import boto3
+import requests
+from dateutil.relativedelta import relativedelta
+from django.utils.translation import gettext_lazy as _
+from more_itertools import chunked, divide, split_after
+from webvtt import Caption, WebVTT
+
+from .conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -106,3 +117,95 @@ class FFProbeProcess:
         info = probe.stdout.decode("utf-8")
         logger.debug("Extracted metadata: {}".format(info))
         return json.loads(info)
+
+
+class TranscribeException(Exception):
+    pass
+
+
+class TranscribeMixin:
+    aws = boto3.Session(
+        aws_access_key_id=settings.BASE_AWS_ACCESS_KEY,
+        aws_secret_access_key=settings.BASE_AWS_SECRET_ACCESS_KEY,
+        region_name=settings.BASE_AWS_REGION_NAME,
+    )
+
+    def transcribe(self, job, audio, language):
+        logger.debug(f"Transcribing audio: {audio}")
+        s3 = self.aws.resource("s3")
+        bucket = s3.Bucket(settings.VIDEO_TRANSCRIBE_BUCKET)
+        bucket.upload_file(audio, job)
+        transcribe = self.aws.client("transcribe")
+        transcribe.start_transcription_job(
+            TranscriptionJobName=job,
+            LanguageCode=language,
+            MediaFormat="flac",
+            Media={
+                "MediaFileUri": f"https://{bucket.name}.s3.{self.aws.region_name}.amazonaws.com/{job}"
+            },
+        )
+        return job
+
+    def retrieve(self, job):
+        logger.debug(f"Fetching transcription result for {job}")
+        transcribe = self.aws.client("transcribe")
+        try:
+            result = transcribe.get_transcription_job(TranscriptionJobName=job).get(
+                "TranscriptionJob"
+            )
+        except Exception as e:
+            logger.error(f"Could not fetch transcription job: {e}")
+            raise TranscribeException(_("Could not fetch transcription job"))
+        status = result.get("TranscriptionJobStatus")
+        if status != "COMPLETED":
+            logger.debug(f"Job not yet completed: {job}")
+            raise TranscribeException(_("Job not yet completed"))
+        url = result.get("Transcript").get("TranscriptFileUri")
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Could not fetch transcription results for {job}: {e}")
+            raise TranscribeException(_("Could not fetch transcription results"))
+        s3 = self.aws.client("s3")
+        logger.debug(f"Removing audio file from S3 bucket")
+        s3.delete_object(Bucket=settings.VIDEO_TRANSCRIBE_BUCKET, Key=f"{job}.flac")
+        logger.debug(f"Removing transcription job")
+        transcribe.delete_transcription_job(TranscriptionJobName=job)
+        return (
+            result.get("CreationTime"),
+            result.get("CompletionTime"),
+            response.json(),
+        )
+
+
+def json2vtt(data):
+    def timestamp(sec: float) -> str:
+        t = relativedelta(microseconds=int(sec * (10 ** 6)))
+        return f"{t.hours:03.0f}:{t.minutes:02.0f}:{t.seconds:02.0f}.{t.microseconds/1000:03.0f}"
+
+    def content(a, v) -> str:
+        c = max(v.get("alternatives"), key=lambda k: float(k.get("confidence"))).get(
+            "content"
+        )
+        if not a:
+            return c
+        if v.get("type") == "punctuation":
+            return f"{a}{c}"
+        return f"{a} {c}"
+
+    sentences = split_after(data, lambda i: i.get("type") == "punctuation")
+    vtt = WebVTT()
+    for s in sentences:
+        csize = ceil(len(s) / 12)
+        for p in divide(csize, s):
+            lst = list(p)
+            text = reduce(content, lst, None)
+            pro = list(filter(lambda i: i.get("type") == "pronunciation", lst))
+            start = timestamp(min(map(lambda i: float(i.get("start_time")), pro)))
+            end = timestamp(max(map(lambda i: float(i.get("end_time")), pro)))
+            caption = Caption(start, end, map(" ".join, divide(2, text.split())))
+            vtt.captions.append(caption)
+    output = io.StringIO()
+    vtt.write(output)
+    return output.getvalue()

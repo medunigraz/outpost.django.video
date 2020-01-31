@@ -95,3 +95,8 @@ class RecordingAdmin(admin.ModelAdmin):
 @admin.register(models.PanasonicCamera)
 class PanasonicCameraAdmin(admin.ModelAdmin):
     pass
+
+
+@admin.register(models.TranscribeLanguage)
+class TranscribeLanguageAdmin(admin.ModelAdmin):
+    pass
