@@ -167,9 +167,10 @@ class TranscribeMixin:
         except requests.exceptions.RequestException as e:
             logger.error(f"Could not fetch transcription results for {job}: {e}")
             raise TranscribeException(_("Could not fetch transcription results"))
-        s3 = self.aws.client("s3")
         logger.debug(f"Removing audio file from S3 bucket")
-        s3.delete_object(Bucket=settings.VIDEO_TRANSCRIBE_BUCKET, Key=f"{job}.flac")
+        s3 = self.aws.resource("s3")
+        bucket = s3.Bucket(settings.VIDEO_TRANSCRIBE_BUCKET)
+        bucket.Object(f"{job}.flac").delete()
         logger.debug(f"Removing transcription job")
         transcribe.delete_transcription_job(TranscriptionJobName=job)
         return (
