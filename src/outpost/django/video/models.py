@@ -526,3 +526,67 @@ class TranscribeLanguage(OrderedModel):
 
     def __str__(self):
         return f"{self.name} ({self.code})"
+
+
+# class Opencast(models.Model):
+#    url = models.URLField()
+#    username = models.CharField(max_length=128)
+#    password = models.CharField(max_length=128)
+#    enabled = models.BooleanField(default=False)
+#
+#    def __str__(self):
+#        return self.url
+#
+#
+# class Event(models.Model):
+#    opencast = models.ForeignKey("Opencast)")
+#
+#
+# class Transcription(models.Model):
+#    event = models.ForeignKey("Event)")
+#    language = models.ForeignKey("TranscribeLanguage")
+#    created = models.DateTimeField(auto_now_add=True)
+#    data = JSONField(blank=True, null=True)
+#    duration = models.DurationField()
+#
+#    @staticmethod
+#    def timestamp(sec: float) -> str:
+#        t = relativedelta(microseconds=int(sec * (10 ** 6)))
+#        return f"{t.hours:03.0f}:{t.minutes:02.0f}:{t.seconds:02.0f}.{t.microseconds/1000:03.0f}"
+#
+#    @staticmethod
+#    def content(a, v) -> str:
+#        c = max(v.get("alternatives"), key=lambda k: float(k.get("confidence"))).get(
+#            "content"
+#        )
+#        if not a:
+#            return c
+#        if v.get("type") == "punctuation":
+#            return f"{a}{c}"
+#        return f"{a} {c}"
+#
+#    @property
+#    def vtt(self):
+#        items = self.data.get("results").get("items")
+#        sentences = split_after(items, lambda i: i.get("type") == "punctuation")
+#        vtt = WebVTT()
+#        for s in sentences:
+#            csize = ceil(len(s) / 12)
+#            for p in divide(csize, s):
+#                lst = list(p)
+#                text = reduce(self.content, lst, None)
+#                pro = list(filter(lambda i: i.get("type") == "pronunciation", lst))
+#                start = self.timestamp(
+#                    min(map(lambda i: float(i.get("start_time")), pro))
+#                )
+#                end = self.timestamp(max(map(lambda i: float(i.get("end_time")), pro)))
+#                caption = Caption(start, end, map(" ".join, divide(2, text.split())))
+#                vtt.captions.append(caption)
+#        output = io.StringIO()
+#        vtt.write(output)
+#        return output.getvalue()
+#
+#    @property
+#    def text(self) -> str:
+#        tr = self.data.get("results").get("transcripts")
+#        return "".join([t.get("transcript") for t in tr])

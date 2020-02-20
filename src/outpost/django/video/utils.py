@@ -204,7 +204,7 @@ def json2vtt(data):
             pro = list(filter(lambda i: i.get("type") == "pronunciation", lst))
             start = timestamp(min(map(lambda i: float(i.get("start_time")), pro)))
             end = timestamp(max(map(lambda i: float(i.get("end_time")), pro)))
-            caption = Caption(start, end, map(" ".join, divide(2, text.split())))
+            caption = Caption(start, end, text)
             vtt.captions.append(caption)
     output = io.StringIO()
     vtt.write(output)

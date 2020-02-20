@@ -1,25 +1,26 @@
+import io
 import logging
+import os.path
 import re
 import socket
-import boto3
-import requests
-import os.path
+from contextlib import ExitStack
 from datetime import timedelta
-from urllib.parse import urljoin
+from itertools import chain
 from tempfile import NamedTemporaryFile
+from urllib.parse import urljoin
 
+import requests
 from bs4 import BeautifulSoup
 from celery import states
 from celery.exceptions import Ignore
 from celery.schedules import crontab
 from celery.task import PeriodicTask, Task
 from django.contrib.sites.models import Site
+from django.core.files import File
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
-from pint import UnitRegistry
-
 from outpost.django.base.tasks import MaintainanceTaskMixin
 from outpost.django.base.utils import Process
 from outpost.django.campusonline.models import Course, CourseGroupTerm, Person
@@ -28,9 +29,14 @@ from outpost.django.campusonline.serializers import (
     PersonSerializer,
     RoomSerializer,
 )
+from pint import UnitRegistry
+from purl import URL
+from requests.auth import HTTPBasicAuth
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .conf import settings
-from .utils import FFProbeProcess
+from .utils import FFProbeProcess, TranscribeException, TranscribeMixin
+
 from .models import (  # EventAudio,; EventVideo,
     Epiphan,
     EpiphanSource,
@@ -421,3 +427,65 @@ class EpiphanRebootTask(MaintainanceTaskMixin, PeriodicTask):
 
         for e in epiphans:
             e.reboot()
+
+
+class TranscribeTask(TranscribeMixin, MaintainanceTaskMixin, Task):
+    ignore_result = False
+
+    def run(self, pk, **kwargs):
+        from .models import TranscribeLanguage, Event
+
+        if "language" in kwargs:
+            lang = TranscribeLanguage.objects.get(code=kwargs.get("lanugage"))
+        else:
+            lang = TranscribeLanguage.objects.first()
+        logger.debug(f"Transcribing audio: {pk}")
+        event = Event.objects.get(pk=pk)
+        url = (
+            URL(event.opencast.url)
+            .add_path_segment("events")
+            .add_path_segment(event.pk)
+            .add_path_segment("publications")
+        )
+        try:
+            resp = requests.get(url.as_string())
+            resp.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Could not fetch Opencast publications for {event}: {e}")
+        publications = resp.json()
+        candidate = max(
+            chain.from_iterable(
+                filter(
+                    lambda m: m.get("has_audio", False),
+                    map(publications, lambda p: p.get("media", [])),
+                )
+            ),
+            key=lambda m: m.get("bitrate"),
+        )
+        result = self.transcribe(self.request.id, audio.file, lang.code)
+        return result
+
+
+class TranscribeResultTask(TranscribeMixin, MaintainanceTaskMixin, Task):
+    ignore_result = False
+    default_retry_delay = 120
+    max_retries = 120
+
+    def run(self, job, pk, **kwargs):
+        from .models import Transcript, Event
+
+        logger.debug(f"Fetching transcription result for {pk} from {job}")
+        event = Event.objects.get(pk=pk)
+        try:
+            (start, stop, result) = self.retrieve(job)
+        except TranscribeException as e:
+            logger.error(f"Could not fetch transcription results for {job}: {e}")
+            raise self.retry()
+        transcript, created = Transcript.objects.update_or_create(
+            event=event, defaults={"data": result, "duration": stop - start}
+        )
+        if created:
+            logger.info(f"Created new transcription for {event}")
+        else:
+            logger.info(f"Updated transcription for {event}")
+        return transcript.pk
