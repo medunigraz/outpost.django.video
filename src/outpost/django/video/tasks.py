@@ -489,3 +489,121 @@ class TranscribeResultTask(TranscribeMixin, MaintainanceTaskMixin, Task):
         else:
             logger.info(f"Updated transcription for {event}")
         return transcript.pk
+
+
+class AuphonicProcessTask(MaintainanceTaskMixin, Task):
+    ignore_result = False
+    default_retry_delay = 120
+    max_retries = 120
+
+    format = settings.VIDEO_AUPHONIC_FORMAT
+    url = (
+        URL(settings.VIDEO_AUPHONIC_URL)
+        .add_path_segment("simple")
+        .add_path_segment("productions.json")
+    )
+
+    def run(self, job, pk, **kwargs):
+        logger.debug(f"Starting Auphonic processing: {pk}")
+        rec = Recording.objects.get(pk=pk)
+        audio = map(
+            lambda s: "[i:{id}]".format(id=s.get("id")),
+            filter(lambda s: s.get("codec_type") == "audio", rec.info.get("streams")),
+        )
+        with NamedTemporaryFile(
+            prefix="auphonic-input-", suffix=f".{self.format}"
+        ) as output:
+            extract = Process(
+                "ffmpeg",
+                "-i",
+                rec.online.path,
+                "-filter_complex",
+                "{streams} amix=inputs={count}".format(
+                    streams="".join(audio), count=len(audio)
+                ),
+                "-vn",
+                "-c:a",
+                self.format,
+                output.path,
+            )
+            extract.run()
+            data = MultipartEncoder(
+                fields={
+                    "preset": rec.recorder.auphonic,
+                    "action": "start",
+                    "input_file": output.file,
+                }
+            )
+            try:
+                resp = requests.post(
+                    self.url.as_string(),
+                    auth=(
+                        settings.VIDEO_AUPHONIC_USERNAME,
+                        settings.VIDEO_AUPHONIC_PASSWORD,
+                    ),
+                    data=data,
+                    headers={"Content-Type": data.content_type},
+                )
+                resp.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Could not upload audio data to Auphonic: {e}")
+                raise self.retry()
+            uuid = resp.json().get("data").get("uuid")
+            logger.info(f"Queued Auphonic production with UUID {uuid}")
+            return uuid
+
+
+class AuphonicResultTask(MaintainanceTaskMixin, Task):
+    ignore_result = True
+    default_retry_delay = 120
+    max_retries = 120
+
+    url = URL(settings.VIDEO_AUPHONIC_URL).add_path_segment("production")
+
+    def run(self, job, pk, **kwargs):
+        logger.debug(f"Fetching Auphonic result for {pk} from {job}")
+        try:
+            resp = requests.get(self.url.add_path_segment(f"{job}.json").as_string())
+            resp.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Could not fetch Auphonic result for {job}: {e}")
+            raise self.retry()
+        results = map(
+            lambda o: (
+                o,
+                NamedTemporaryFile(prefix="auphonic-output-", suffix=o.get("ending")),
+            ),
+            resp.json().get("data").get("output_files"),
+        )
+        with ExitStack() as stack:
+            for result, output in results:
+                stack.enter_context(output)
+                download = result.get("download_url")
+                try:
+                    logger.debug(f"Downloading Auphonic media: {download}")
+                    with requests.get(download, stream=True) as resp:
+                        resp.raise_for_status()
+                        for chunk in resp.iter_content(chunk_size=8192):
+                            if chunk:
+                                output.write(chunk)
+                        output.flush()
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Could not fetch Auphonic result for {job}: {e}")
+                    raise self.retry()
+            rec = Recording.objects.get(pk=pk)
+            with NamedTemporaryFile(prefix="merged-", suffix=".ts") as output:
+                args = ["ffmpeg", "-i", rec.online.path, "-map", "0:v", "-map", "0:a"]
+                args.extend(
+                    chain.from_iterable(
+                        zip(
+                            *(
+                                (("-i", o), ("-map", f"{i + 1}:a"))
+                                for i, o in enumerate((o for _, o in results))
+                            )
+                        )
+                    )
+                )
+                args.extend(["-c:v", "copy", "-c:a", "aac", output.name])
+                merge = Process(*args)
+                merge.run()
+                rec.online.save(output.name, File(output.file))

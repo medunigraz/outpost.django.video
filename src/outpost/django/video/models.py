@@ -87,6 +87,7 @@ class Recorder(NetworkedDeviceMixin, PolymorphicModel):
     )
     notifications = GenericRelation("base.Notification")
     retention = models.DurationField(default=None, null=True, blank=True)
+    auphonic = models.TextField(blank=True, null=True)
 
     class Meta:
         ordering = ("name", "hostname")

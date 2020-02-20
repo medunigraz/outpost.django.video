@@ -20,6 +20,10 @@ class VideoAppConf(AppConf):
         "hmac-sha2-512",
     ]
     TRANSCRIBE_BUCKET = None
+    AUPHONIC_URL = "https://auphonic.com/api/"
+    AUPHONIC_USERNAME = None
+    AUPHONIC_PASSWORD = None
+    AUPHONIC_FORMAT = "flac"
 
     class Meta:
         prefix = "video"
