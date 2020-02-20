@@ -1,8 +1,7 @@
-from rest_framework import serializers
-
 from outpost.django.api.serializers import Base64FileField
 from outpost.django.campusonline.serializers import CourseSerializer, PersonSerializer
 from outpost.django.geo.serializers import RoomSerializer
+from rest_framework import serializers
 
 from . import models
 

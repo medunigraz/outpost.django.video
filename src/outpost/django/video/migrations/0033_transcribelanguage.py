@@ -7,22 +7,25 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0032_auto_20191018_1010'),
-    ]
+    dependencies = [("video", "0032_auto_20191018_1010")]
 
     operations = [
         migrations.CreateModel(
-            name='TranscribeLanguage',
+            name="TranscribeLanguage",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('order', models.PositiveIntegerField(db_index=True, editable=False)),
-                ('name', models.CharField(max_length=128)),
-                ('code', models.CharField(max_length=32)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("order", models.PositiveIntegerField(db_index=True, editable=False)),
+                ("name", models.CharField(max_length=128)),
+                ("code", models.CharField(max_length=32)),
             ],
-            options={
-                'ordering': ('order',),
-                'abstract': False,
-            },
-        ),
+            options={"ordering": ("order",), "abstract": False},
+        )
     ]

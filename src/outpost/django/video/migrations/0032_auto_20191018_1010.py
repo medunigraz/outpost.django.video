@@ -9,14 +9,20 @@ import outpost.django.base.utils
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0031_auto_20181017_0922'),
-    ]
+    dependencies = [("video", "0031_auto_20181017_0922")]
 
     operations = [
         migrations.AlterField(
-            model_name='recording',
-            name='archive',
-            field=models.FileField(blank=True, default=None, null=True, storage=django.core.files.storage.FileSystemStorage(location='/archive'), upload_to=outpost.django.base.utils.Uuid4Upload),
-        ),
+            model_name="recording",
+            name="archive",
+            field=models.FileField(
+                blank=True,
+                default=None,
+                null=True,
+                storage=django.core.files.storage.FileSystemStorage(
+                    location="/archive"
+                ),
+                upload_to=outpost.django.base.utils.Uuid4Upload,
+            ),
+        )
     ]
