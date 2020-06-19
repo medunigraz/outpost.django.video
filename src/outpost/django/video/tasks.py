@@ -390,6 +390,8 @@ class EpiphanSourceTask(MaintainanceTaskMixin, PeriodicTask):
     ignore_result = True
 
     def run(self, **kwargs):
+        if not settings.VIDEO_EPIPHAN_PREVIEW:
+            return
         sources = EpiphanSource.objects.filter(
             epiphan__enabled=True, epiphan__online=True
         )
