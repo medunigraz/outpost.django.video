@@ -154,8 +154,8 @@ class SFTPServer(asyncssh.SFTPServer):
                 AuphonicResultTask().s(rec.pk)
             ])
         tasks.append(NotifyRecordingTask().si(rec.pk))
-        chain(*tasks).delay()
-        logger.debug("Done starting post-upload task chain")
+        result = chain(*tasks).delay()
+        logger.debug(f"Done starting post-upload task chain: {result.id}")
 
     @log
     def write(self, rec, offset, data):
