@@ -35,8 +35,8 @@ class EpiphanSourceInlineAdmin(admin.TabularInline):
 
 @admin.register(models.Server)
 class ServerAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "fingerprint", "active")
-    list_filter = ("active",)
+    list_display = ("__str__", "fingerprint", "enabled")
+    list_filter = ("enabled",)
     search_fields = ("hostname", "port")
     readonly_fields = ("fingerprint",)
 
