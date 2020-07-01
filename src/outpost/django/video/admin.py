@@ -4,8 +4,21 @@ from outpost.django.base.admin import NotificationInlineAdmin
 from . import models
 
 
-class EpiphanRecordingInlineAdmin(admin.TabularInline):
-    model = models.EpiphanRecording
+@admin.register(models.EpiphanRecording)
+class EpiphanRecordingAdmin(admin.ModelAdmin):
+    list_display = (
+        "pk",
+        "recorder",
+        "channel",
+        "start",
+        "end",
+        "presenter",
+        "course",
+        "title",
+        "ready",
+    )
+    list_filter = ("recorder", "ready")
+    search_fields = ("presenter", "course", "title")
 
 
 class RecordingAssetInlineAdmin(admin.TabularInline):
@@ -50,7 +63,6 @@ class EpiphanAdmin(admin.ModelAdmin):
     inlines = (
         EpiphanChannelInlineAdmin,
         EpiphanSourceInlineAdmin,
-        EpiphanRecordingInlineAdmin,
         NotificationInlineAdmin,
     )
 
