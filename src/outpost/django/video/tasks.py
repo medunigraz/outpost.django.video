@@ -94,7 +94,7 @@ class ProcessRecordingTask(VideoTaskMixin, Task):
         logger.info(f"Finished recording: {pk}")
 
 
-class MetadataRecordingTask(MaintainanceTaskMixin, Task):
+class MetadataRecordingTask(VideoTaskMixin, Task):
     ignore_result = False
 
     def run(self, pk, **kwargs):
@@ -151,7 +151,7 @@ class MetadataRecordingTask(MaintainanceTaskMixin, Task):
         return (cgt.get("title", None), course, person)
 
 
-class NotifyRecordingTask(MaintainanceTaskMixin, Task):
+class NotifyRecordingTask(VideoTaskMixin, Task):
     ignore_result = False
 
     def run(self, pk, **kwargs):
@@ -494,7 +494,7 @@ class TranscribeResultTask(TranscribeMixin, MaintainanceTaskMixin, Task):
         return transcript.pk
 
 
-class AuphonicProcessTask(MaintainanceTaskMixin, Task):
+class AuphonicProcessTask(VideoTaskMixin, Task):
     ignore_result = False
     default_retry_delay = 120
     max_retries = 120
@@ -566,7 +566,7 @@ class AuphonicProcessTask(MaintainanceTaskMixin, Task):
                     raise self.retry()
 
 
-class AuphonicResultTask(MaintainanceTaskMixin, Task):
+class AuphonicResultTask(VideoTaskMixin, Task):
     ignore_result = True
     default_retry_delay = 120
     max_retries = 120
