@@ -84,6 +84,41 @@ class FFMPEGVolumeLevelHandler:
         self.values[key] = value
 
 
+class FFMPEGSilenceHandler:
+
+    start = re.compile(
+        r"^\[silencedetect @ 0x[0-9a-f]+\] silence_start: (?P<start>\d+(?:\.\d+(?:e[\+\-]\d+)?)?)$"
+    )
+    end = re.compile(
+        r"^\[silencedetect @ 0x[0-9a-f]+\] silence_end: (?P<end>\d+(?:\.\d+(?:e[\+\-]\d+)?)?) \| silence_duration: (?P<duration>\d+(?:\.\d+(?:e[\+\-]\d+)?)?)$"
+    )
+
+    def __init__(self):
+        self.values = list()
+
+    def __call__(self, line: str) -> None:
+        # Detect start-of-silence line
+        matches = self.start.match(line)
+        if matches:
+            (start,) = matches.groups()
+            if len(self.values) > 0:
+                if not self.values[-1].get('end'):
+                    # Delete former trailing duration because it has no end
+                    del self.values[-1]
+            self.values.append({"start": float(start)})
+            return
+        # Handle end-of-silence line
+        matches = self.end.match(line)
+        if matches:
+            (end, duration) = matches.groups()
+            if len(self.values) > 0:
+                self.values[-1]["end"] = float(end)
+                self.values[-1]["duration"] = float(duration)
+
+    def overall(self) -> float:
+        return sum(map(lambda e: e.get('duration'), self.values))
+
+
 class MP4BoxProgressHandler:
     pattern = re.compile(r"^([\w ]+): \|\s+\| \((\d+)\/(\d+)\)$")
 

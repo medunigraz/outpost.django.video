@@ -36,7 +36,7 @@ from requests.auth import HTTPBasicAuth
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .conf import settings
-from .utils import FFProbeProcess, TranscribeException, TranscribeMixin
+from .utils import FFProbeProcess, FFMPEGSilenceHandler, TranscribeException, TranscribeMixin
 
 from .models import (  # EventAudio,; EventVideo,
     Epiphan,
@@ -527,7 +527,7 @@ class AuphonicProcessTask(MaintainanceTaskMixin, Task):
                 "-i",
                 rec.online.path,
                 "-filter_complex",
-                "{streams} amix=inputs={count}".format(
+                "{streams} amix=inputs={count},silencedetect".format(
                     streams="".join(audio), count=len(audio)
                 ),
                 "-vn",
@@ -535,7 +535,13 @@ class AuphonicProcessTask(MaintainanceTaskMixin, Task):
                 self.format,
                 output.name,
             )
+            silence = FFMPEGSilenceHandler()
+            extract.handler(silence)
             extract.run()
+            ratio = silence.overall() / float(rec.info.get('format').get('duration'))
+            if ratio > settings.VIDEO_AUPHONIC_SILENCE_THRESHOLD:
+                logger.warn(f"Silent audio in recording {rec} detected. Skipping Auphonic processing.")
+                return
             mime, _ = mimetypes.guess_type(output.name)
             with open(output.name, "rb") as inp:
                 data = MultipartEncoder(
@@ -570,6 +576,9 @@ class AuphonicResultTask(MaintainanceTaskMixin, Task):
 
     def run(self, job, pk, **kwargs):
         logger.info(f"Fetching Auphonic result for {pk} from {job}")
+        if not job:
+            logger.info(f"No job ID specified for {pk}, skipping Auphonic result.")
+            return
         url = self.url.add_path_segment(f"{job}.json")
         try:
             with requests.get(url.as_string(), auth=self.auth) as resp:

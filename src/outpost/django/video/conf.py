@@ -26,6 +26,7 @@ class VideoAppConf(AppConf):
     AUPHONIC_PASSWORD = None
     AUPHONIC_FORMAT = "flac"
     AUPHONIC_CHUNK_SIZE = 8192
+    AUPHONIC_SILENCE_THRESHOLD = 0.9
 
     class Meta:
         prefix = "video"
