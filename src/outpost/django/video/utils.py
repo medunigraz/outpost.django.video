@@ -6,6 +6,7 @@ import re
 import subprocess
 from functools import partial, reduce
 from math import ceil
+from typing import Callable
 
 import boto3
 import requests
@@ -25,10 +26,10 @@ class FFMPEGProgressHandler:
     re_duration = re.compile("Duration: (\d{2}):(\d{2}):(\d{2}).(\d{2})[^\d]*", re.U)
     re_position = re.compile("time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})\d*", re.U | re.I)
 
-    def __init__(self, func):
+    def __init__(self, func: Callable[[float, float], None]):
         self.func = func
 
-    def __call__(self, line):
+    def __call__(self, line: str) -> None:
         def time2sec(search):
             return sum([i ** (2 - i) * int(search.group(i + 1)) for i in range(3)])
 
@@ -55,7 +56,7 @@ class FFMPEGCropHandler:
     def __init__(self):
         self.dims = list()
 
-    def __call__(self, line):
+    def __call__(self, line: str) -> None:
         matches = self.pattern.match(line)
         if not matches:
             return
@@ -76,7 +77,7 @@ class FFMPEGVolumeLevelHandler:
     def __init__(self):
         self.values = dict()
 
-    def __call__(self, line):
+    def __call__(self, line: str) -> None:
         matches = self.pattern.match(line)
         if not matches:
             return
