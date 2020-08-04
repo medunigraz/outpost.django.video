@@ -405,7 +405,9 @@ class Recording(TimeStampedModel, PolymorphicModel):
 
 
 class EpiphanRecording(Recording):
-    channel = models.ForeignKey("EpiphanChannel", null=True, blank=True, on_delete=models.SET_NULL)
+    channel = models.ForeignKey(
+        "EpiphanChannel", null=True, blank=True, on_delete=models.SET_NULL
+    )
 
 
 @signal_connect

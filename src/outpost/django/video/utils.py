@@ -103,7 +103,7 @@ class FFMPEGSilenceHandler:
         if matches:
             (start,) = matches.groups()
             if len(self.values) > 0:
-                if not self.values[-1].get('end'):
+                if not self.values[-1].get("end"):
                     # Delete former trailing duration because it has no end
                     del self.values[-1]
             self.values.append({"start": float(start)})
@@ -117,7 +117,7 @@ class FFMPEGSilenceHandler:
                 self.values[-1]["duration"] = float(duration)
 
     def overall(self) -> float:
-        return sum(map(lambda e: e.get('duration'), self.values))
+        return sum(map(lambda e: e.get("duration"), self.values))
 
 
 class MP4BoxProgressHandler:

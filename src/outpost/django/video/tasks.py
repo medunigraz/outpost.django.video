@@ -36,7 +36,12 @@ from requests.auth import HTTPBasicAuth
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .conf import settings
-from .utils import FFProbeProcess, FFMPEGSilenceHandler, TranscribeException, TranscribeMixin
+from .utils import (
+    FFProbeProcess,
+    FFMPEGSilenceHandler,
+    TranscribeException,
+    TranscribeMixin,
+)
 
 from .models import (  # EventAudio,; EventVideo,
     Epiphan,
@@ -538,9 +543,11 @@ class AuphonicProcessTask(VideoTaskMixin, Task):
             silence = FFMPEGSilenceHandler()
             extract.handler(silence)
             extract.run()
-            ratio = silence.overall() / float(rec.info.get('format').get('duration'))
+            ratio = silence.overall() / float(rec.info.get("format").get("duration"))
             if ratio > settings.VIDEO_AUPHONIC_SILENCE_THRESHOLD:
-                logger.warn(f"Silent audio in recording {rec} detected. Skipping Auphonic processing.")
+                logger.warn(
+                    f"Silent audio in recording {rec} detected. Skipping Auphonic processing."
+                )
                 return
             mime, _ = mimetypes.guess_type(output.name)
             with open(output.name, "rb") as inp:
