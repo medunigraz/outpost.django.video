@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import subprocess
+import django
 from base64 import b64encode
 from datetime import timedelta
 from functools import partial, reduce
@@ -91,7 +92,11 @@ class Recorder(NetworkedDeviceMixin, PolymorphicModel):
 
     class Meta:
         ordering = ("name", "hostname")
-        permissions = (("view_recorder", _("View Recorder")),)
+        permissions = (
+            (("view_recorder", _("View Recorder")),)
+            if django.VERSION < (2, 1)
+            else tuple()
+        )
 
     def __str__(self):
         return self.name
@@ -226,7 +231,7 @@ class EpiphanSource(models.Model):
     name = models.CharField(max_length=64)
     number = models.PositiveSmallIntegerField()
     port = models.PositiveIntegerField(default=554)
-    input = models.ForeignKey("Input", blank=True, null=True)
+    input = models.ForeignKey("Input", blank=True, null=True, on_delete=models.SET_NULL)
 
     class Meta:
         ordering = ("number",)
@@ -383,7 +388,11 @@ class Recording(TimeStampedModel, PolymorphicModel):
 
     class Meta:
         ordering = ("-created",)
-        permissions = (("view_recording", _("View Recording")),)
+        permissions = (
+            (("view_recording", _("View Recording")),)
+            if django.VERSION < (2, 1)
+            else tuple()
+        )
 
     def pre_delete(self, *args, **kwargs):
         if self.online:
@@ -396,7 +405,7 @@ class Recording(TimeStampedModel, PolymorphicModel):
 
 
 class EpiphanRecording(Recording):
-    channel = models.ForeignKey("EpiphanChannel", null=True)
+    channel = models.ForeignKey("EpiphanChannel", null=True, blank=True, on_delete=models.SET_NULL)
 
 
 @signal_connect
@@ -416,7 +425,11 @@ class RecordingAsset(TimeStampedModel):
 
     class Meta:
         ordering = ("-created",)
-        permissions = (("view_recordingasset", _("View Recording Asset")),)
+        permissions = (
+            (("view_recordingasset", _("View Recording Asset")),)
+            if django.VERSION < (2, 1)
+            else tuple()
+        )
 
     def __str__(self):
         return self.name
