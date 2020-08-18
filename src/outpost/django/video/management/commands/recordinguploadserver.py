@@ -150,7 +150,7 @@ class SFTPServer(asyncssh.SFTPServer):
         tasks = [ProcessRecordingTask().si(rec.pk), MetadataRecordingTask().si(rec.pk)]
         if rec.recorder.auphonic:
             tasks.extend(
-                [AuphonicProcessTask().si(rec.pk), AuphonicResultTask().s(rec.pk)]
+                [AuphonicProcessTask().si(rec.pk), AuphonicResultTask().s(rec.pk), ProcessRecordingTask().si(rec.pk)]
             )
         tasks.append(NotifyRecordingTask().si(rec.pk))
         result = chain(*tasks).delay()
