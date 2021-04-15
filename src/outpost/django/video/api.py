@@ -18,7 +18,7 @@ from .serializers import (
     RecordingAssetSerializer,
     RecordingSerializer,
 )
-from .tasks import ExportTask
+from .tasks import ExportTasks
 
 from .models import (  # Broadcast,; EventAudio,; EventMedia,; EventVideo,; Publish,; Stream,; Token,
     Epiphan,
@@ -59,7 +59,7 @@ class ExportClassViewSet(ListAPIView, RetrieveAPIView, GenericViewSet):
     def post(self, request, *args, **kwargs):
         exporter = request.data.get("exporter")
         recording = request.data.get("recording")
-        task = ExportTask.delay(recording, exporter, request.build_absolute_uri("/"))
+        task = ExportTasks.create.delay(recording, exporter, request.build_absolute_uri("/"))
         result = {"task": task.id}
         return Response(result)
 

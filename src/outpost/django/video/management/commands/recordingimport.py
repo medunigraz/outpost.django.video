@@ -7,7 +7,7 @@ from django.core.files.base import File
 from django.core.management.base import BaseCommand
 
 from ...models import Epiphan, EpiphanChannel, EpiphanRecording
-from ...tasks import ProcessRecordingTask
+from ...tasks import RecordingTasks
 
 logger = logging.getLogger(__name__)
 
@@ -41,4 +41,4 @@ class Command(BaseCommand):
                 continue
             rec = EpiphanRecording(recorder=epiphan, channel=channel)
             rec.data.save(path.name, File(r))
-            ProcessRecordingTask.delay(rec.pk)
+            RecordingTask.process.delay(rec.pk)

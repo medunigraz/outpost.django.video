@@ -12,10 +12,9 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
-from celery import states
+from celery import shared_task, states
 from celery.exceptions import Ignore
 from celery.schedules import crontab
-from celery.task import PeriodicTask, Task
 from django.contrib.sites.models import Site
 from django.core.files import File
 from django.core.mail import EmailMessage
@@ -81,15 +80,10 @@ ureg = UnitRegistry()
 #         "+eq(t,287)+eq(t,361)+eq(t,363)+eq(t,365)'" -vsync 0 frames/%05d.jpg'
 
 
-class VideoTaskMixin:
-    options = {"queue": "video"}
-    queue = "video"
+class RecordingTasks:
 
-
-class ProcessRecordingTask(VideoTaskMixin, Task):
-    ignore_result = False
-
-    def run(self, pk, **kwargs):
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Recording:process")
+    def process(task, pk):
         logger.debug(f"Processing recording: {pk}")
         rec = Recording.objects.get(pk=pk)
         probe = FFProbeProcess("-show_format", "-show_streams", rec.online.path)
@@ -98,11 +92,8 @@ class ProcessRecordingTask(VideoTaskMixin, Task):
         rec.save()
         logger.info(f"Finished recording: {pk}")
 
-
-class MetadataRecordingTask(VideoTaskMixin, Task):
-    ignore_result = False
-
-    def run(self, pk, **kwargs):
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Recording:metadata")
+    def metadata(task, pk):
         logger.debug(f"Fetching metadata: {pk}")
         rec = Recording.objects.get(pk=pk)
         if not rec.start:
@@ -114,14 +105,30 @@ class MetadataRecordingTask(VideoTaskMixin, Task):
         if not rec.recorder.room:
             logger.warn(f"No room found: {pk}")
             return
-        data = MetadataRecordingTask.find(
-            rec.recorder.room.campusonline,
-            rec.start + timedelta(minutes=30),
-            rec.end - timedelta(minutes=30),
+        cgt = (
+            CourseGroupTerm.objects.filter(
+                room=rec.recorder.room.campusonline,
+                start__lte=rec.start + timedelta(minutes=30),
+                end__gte=rec.end - timedelta(minutes=30),
+            )
+            .values("start", "end", "person", "title", "coursegroup__course")
+            .distinct()
+            .first()
         )
-        if not data:
+        if not cgt:
+            logger.warn("No Course Group Term found")
             return
-        (rec.title, rec.course, rec.presenter) = data
+        rec.title = cgt.get("title", None)
+        try:
+            rec.course = Course.objects.get(pk=cgt.get("coursegroup__course"))
+        except Course.DoesNotExist as e:
+            logger.warn(f"No Course found: {e}")
+            rec.course = None
+        try:
+            rec.person = Person.objects.get(pk=cgt.get("person"))
+        except Person.DoesNotExist as e:
+            logger.warn(f"No Person found: {e}")
+            rec.person = None
         rec.metadata = {
             "title": rec.title,
             "room": RoomSerializer(rec.recorder.room.campusonline).data,
@@ -132,34 +139,8 @@ class MetadataRecordingTask(VideoTaskMixin, Task):
         }
         rec.save()
 
-    @staticmethod
-    def find(room, start, end):
-        cgt = (
-            CourseGroupTerm.objects.filter(room=room, start__lte=start, end__gte=end)
-            .values("start", "end", "person", "title", "coursegroup__course")
-            .distinct()
-            .first()
-        )
-        if not cgt:
-            logger.warn("No Course Group Term found")
-            return
-        course = None
-        try:
-            course = Course.objects.get(pk=cgt.get("coursegroup__course"))
-        except Course.DoesNotExist as e:
-            logger.warn(f"No Course found: {e}")
-        person = None
-        try:
-            person = Person.objects.get(pk=cgt.get("person"))
-        except Person.DoesNotExist as e:
-            logger.warn(f"No Person found: {e}")
-        return (cgt.get("title", None), course, person)
-
-
-class NotifyRecordingTask(VideoTaskMixin, Task):
-    ignore_result = False
-
-    def run(self, pk, **kwargs):
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Recording:notify")
+    def notify(task, pk):
         logger.debug(f"Sending notifications: {pk}")
         rec = Recording.objects.get(pk=pk)
         for notification in rec.recorder.epiphan.notifications.all():
@@ -184,15 +165,33 @@ class NotifyRecordingTask(VideoTaskMixin, Task):
                 headers={"X-Recording-ID": rec.pk},
             ).send()
 
+    @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Recording:retention")
+    def retention(task):
+        recorders = Recorder.objects.filter(enabled=True).exclude(retention=None)
+        logger.info(f"Enforcing retention on {recorders.count()} sources")
+        now = timezone.now()
 
-class EpiphanProvisionTask(Task):
-    def run(self, pk, **kwargs):
+        for r in recorders:
+            for rec in Recording.objects.filter(
+                recorder=r, created__lt=(now - r.retention)
+            ):
+                logger.warn(
+                    f"Removing recording {rec.pk} from {rec.created} after retention"
+                )
+                rec.delete()
+
+
+class EpiphanTasks:
+    firmware_regex = re.compile(r'^Current firmware version: "(?P<version>[\w\.]+)"')
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Epiphan:provision")
+    def provision(task, pk):
         if not settings.VIDEO_EPIPHAN_PROVISIONING:
             logger.warn("Epiphan provisioning disabled!")
             return
-        self.epiphan = Epiphan.objects.get(pk=pk)
-        self.epiphan.session.post(
-            self.epiphan.url.path("admin/afucfg").as_string(),
+        epiphan = Epiphan.objects.get(pk=pk)
+        epiphan.session.post(
+            epiphan.url.path("admin/afucfg").as_string(),
             data={
                 "pfd_form_id": "fn_afu",
                 "afuEnable": "on",
@@ -222,9 +221,9 @@ class EpiphanProvisionTask(Task):
                 "scpPort": None,
                 "scpuser": None,
                 "scppasswd": None,
-                "sftpServer": self.epiphan.server.hostname or socket.getfqdn(),
-                "sftpPort": self.epiphan.server.port,
-                "sftpuser": self.epiphan.pk,
+                "sftpServer": epiphan.server.hostname or socket.getfqdn(),
+                "sftpPort": epiphan.server.port,
+                "sftpuser": epiphan.pk,
                 "sftppasswd": None,
                 "sftptmpfile": None,
                 "s3Region": None,
@@ -236,23 +235,23 @@ class EpiphanProvisionTask(Task):
             },
         )
         now = timezone.now()
-        self.epiphan.session.post(
-            self.epiphan.url.path("admin/timesynccfg").as_string(),
+        epiphan.session.post(
+            epiphan.url.path("admin/timesynccfg").as_string(),
             data={
                 "fn": "date",
                 "tz": "Europe/Vienna",
                 "rdate": "auto",
                 "rdate_proto": "NTP",
-                "server": self.epiphan.ntp,
+                "server": epiphan.ntp,
                 "ptp_domain": "_DFLT",
                 "rdate_secs": "900",
                 "date": now.strftime("%Y-%m-%d"),
                 "time": now.strftime("%H:%M:%S"),
             },
         )
-        self.epiphan.session.post(
-            self.epiphan.url.path("admin/sshkeys.cgi").as_string(),
-            files={"identity": ("key", self.epiphan.private_key())},
+        epiphan.session.post(
+            epiphan.url.path("admin/sshkeys.cgi").as_string(),
+            files={"identity": ("key", epiphan.private_key())},
             data={"command": "add"},
         )
 
@@ -309,92 +308,21 @@ class EpiphanProvisionTask(Task):
             },
         )
 
-
-class EpiphanFirmwareTask(MaintainanceTaskMixin, PeriodicTask):
-    run_every = timedelta(hours=12)
-    ignore_result = False
-    regex = re.compile(r'^Current firmware version: "(?P<version>[\w\.]+)"')
-
-    def run(self, pk, **kwargs):
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Epiphan:fetch_firmware_version")
+    def fetch_firmware_version(task, pk):
         epiphan = Epiphan.objects.get(pk=pk)
         response = epiphan.session.get(
-            self.epiphan.url.path("admin/firmwarecfg").as_string()
+            epiphan.url.path("admin/firmwarecfg").as_string()
         )
         bs = BeautifulSoup(response.content, "lxml")
         text = bs.find(id="fn_upgrade").find("p").text
-        version = self.regex.match(text).groupdict().get("version", "0")
+        version = EpiphanTasks.regex.match(text).groupdict().get("version", "0")
         if epiphan.version != version:
             epiphan.version = version
             epiphan.save()
 
-
-class ExportTask(VideoTaskMixin, Task):
-    def run(self, pk, exporter, base_uri, **kwargs):
-        classes = Export.__subclasses__()
-        exporters = {c.__name__: c for c in classes}
-        if exporter not in exporters:
-            self.update_state(
-                state=states.FAILURE, meta=f"Unknown exporter: {exporter}"
-            )
-            raise Ignore()
-        try:
-            rec = Recording.objects.get(pk=pk)
-        except Recording.DoesNotExist:
-            self.update_state(state=states.FAILURE, meta=f"Unknown recording: {pk}")
-            raise Ignore()
-        cls = exporters.get(exporter)
-        logger.info("Recording {} export requested: {}".format(rec.pk, cls))
-        (inst, _) = cls.objects.get_or_create(recording=rec)
-        if not inst.data:
-            logger.info(f"Recording {rec.pk} processing: {cls}")
-            inst.process(self.progress)
-            logger.debug(f"Recording {rec.pk} download URL: {inst.data.url}")
-        return urljoin(base_uri, inst.data.url)
-
-    def progress(self, action, current, maximum):
-        logger.debug(f"Progress: {action} {current}/{maximum}")
-        if self.request.id:
-            self.update_state(
-                state="PROGRESS",
-                meta={"action": action, "current": current, "maximum": maximum},
-            )
-
-
-class ExportCleanupTask(MaintainanceTaskMixin, PeriodicTask):
-    run_every = timedelta(hours=1)
-    ignore_result = False
-
-    def run(self, **kwargs):
-        expires = timezone.now() - timedelta(hours=24)
-        for e in Export.objects.filter(modified__lt=expires):
-            logger.debug(f"Remove expired export: {e}")
-            e.delete()
-
-
-class RecordingRetentionTask(MaintainanceTaskMixin, PeriodicTask):
-    run_every = timedelta(hours=1)
-    ignore_result = False
-
-    def run(self, **kwargs):
-        recorders = Recorder.objects.filter(enabled=True).exclude(retention=None)
-        logger.info(f"Enforcing retention on {recorders.count()} sources")
-        now = timezone.now()
-
-        for r in recorders:
-            for rec in Recording.objects.filter(
-                recorder=r, created__lt=(now - r.retention)
-            ):
-                logger.warn(
-                    f"Removing recording {rec.pk} from {rec.created} after retention"
-                )
-                rec.delete()
-
-
-class EpiphanSourceTask(MaintainanceTaskMixin, PeriodicTask):
-    run_every = timedelta(minutes=1)
-    ignore_result = True
-
-    def run(self, **kwargs):
+    @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview")
+    def preview(task):
         if not settings.VIDEO_EPIPHAN_PREVIEW:
             return
         sources = EpiphanSource.objects.filter(
@@ -403,33 +331,23 @@ class EpiphanSourceTask(MaintainanceTaskMixin, PeriodicTask):
         logger.info(f"Updating {sources.count()} sources.")
 
         for s in sources:
-            EpiphanSourceVideoPreviewTask().delay(s.pk)
-            EpiphanSourceAudioWaveformTask().delay(s.pk)
+            EpiphanTasks.preview_video.delay(s.pk)
+            EpiphanTasks.preview_audio.delay(s.pk)
 
-
-class EpiphanSourceVideoPreviewTask(MaintainanceTaskMixin, Task):
-    ignore_result = True
-
-    def run(self, pk, **kwargs):
+    @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_video")
+    def preview_video(task, pk):
         source = EpiphanSource.objects.get(pk=pk)
         logger.info(f"Epiphan source video preview: {source}")
         source.generate_video_preview()
 
-
-class EpiphanSourceAudioWaveformTask(MaintainanceTaskMixin, Task):
-    ignore_result = True
-
-    def run(self, pk, **kwargs):
+    @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_audio")
+    def preview_audio(task, pk):
         source = EpiphanSource.objects.get(pk=pk)
         logger.info(f"Epiphan source audio waveform: {source}")
         source.generate_audio_waveform()
 
-
-class EpiphanRebootTask(MaintainanceTaskMixin, PeriodicTask):
-    run_every = crontab(hour=5, minute=0)
-    ignore_result = False
-
-    def run(self, **kwargs):
+    @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:reboot")
+    def reboot(task):
         epiphans = Epiphan.objects.filter(enabled=True, online=True)
         logger.info(f"Rebooting Epiphans: {epiphans.count()}")
 
@@ -437,8 +355,48 @@ class EpiphanRebootTask(MaintainanceTaskMixin, PeriodicTask):
             e.reboot()
 
 
-class TranscribeTask(TranscribeMixin, MaintainanceTaskMixin, Task):
-    ignore_result = False
+class ExportTasks:
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Export:create")
+    def create(task, pk, exporter, base_uri):
+        def progress(action, current, maximum):
+            logger.debug(f"Progress: {action} {current}/{maximum}")
+            if task.request.id:
+                task.update_state(
+                    state="PROGRESS",
+                    meta={"action": action, "current": current, "maximum": maximum},
+                )
+
+        classes = Export.__subclasses__()
+        exporters = {c.__name__: c for c in classes}
+        if exporter not in exporters:
+            task.update_state(
+                state=states.FAILURE, meta=f"Unknown exporter: {exporter}"
+            )
+            raise Ignore()
+        try:
+            rec = Recording.objects.get(pk=pk)
+        except Recording.DoesNotExist:
+            task.update_state(state=states.FAILURE, meta=f"Unknown recording: {pk}")
+            raise Ignore()
+        cls = exporters.get(exporter)
+        logger.info("Recording {} export requested: {}".format(rec.pk, cls))
+        (inst, _) = cls.objects.get_or_create(recording=rec)
+        if not inst.data:
+            logger.info(f"Recording {rec.pk} processing: {cls}")
+            inst.process(cls.progress)
+            logger.debug(f"Recording {rec.pk} download URL: {inst.data.url}")
+        return urljoin(base_uri, inst.data.url)
+
+    @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Export:cleanup")
+    def cleanup(task):
+        expires = timezone.now() - timedelta(hours=24)
+        for e in Export.objects.filter(modified__lt=expires):
+            logger.debug(f"Remove expired export: {e}")
+            e.delete()
+
+
+class TranscribeTask(TranscribeMixin):
 
     def run(self, pk, **kwargs):
         from .models import TranscribeLanguage, Event
@@ -474,7 +432,7 @@ class TranscribeTask(TranscribeMixin, MaintainanceTaskMixin, Task):
         return result
 
 
-class TranscribeResultTask(TranscribeMixin, MaintainanceTaskMixin, Task):
+class TranscribeResultTask(TranscribeMixin):
     ignore_result = False
     default_retry_delay = 120
     max_retries = 120
@@ -499,21 +457,25 @@ class TranscribeResultTask(TranscribeMixin, MaintainanceTaskMixin, Task):
         return transcript.pk
 
 
-class AuphonicProcessTask(VideoTaskMixin, Task):
-    ignore_result = False
-    default_retry_delay = 120
-    max_retries = 120
+class AuphonicTasks:
 
     format = settings.VIDEO_AUPHONIC_FORMAT
-    url = (
-        URL(settings.VIDEO_AUPHONIC_URL)
-        .add_path_segment("simple")
-        .add_path_segment("productions.json")
-    )
     auth = (settings.VIDEO_AUPHONIC_USERNAME, settings.VIDEO_AUPHONIC_PASSWORD)
 
-    def run(self, pk, **kwargs):
+    @shared_task(
+        bind=True,
+        ignore_result=False,
+        default_retry_delay=120,
+        max_retries=120,
+        name=f"{__name__}.Auphonic:process"
+    )
+    def process(task, pk):
         logger.info(f"Starting Auphonic processing: {pk}")
+        url = (
+            URL(settings.VIDEO_AUPHONIC_URL)
+            .add_path_segment("simple")
+            .add_path_segment("productions.json")
+        )
         rec = Recording.objects.get(pk=pk)
         audio = list(
             map(
@@ -524,7 +486,7 @@ class AuphonicProcessTask(VideoTaskMixin, Task):
             )
         )
         with NamedTemporaryFile(
-            prefix="auphonic-input-", suffix=f".{self.format}"
+            prefix="auphonic-input-", suffix=f".{AuphonicTasks.format}"
         ) as output:
             extract = Process(
                 "ffmpeg",
@@ -537,7 +499,7 @@ class AuphonicProcessTask(VideoTaskMixin, Task):
                 ),
                 "-vn",
                 "-c:a",
-                self.format,
+                AuphonicTasks.format,
                 output.name,
             )
             silence = FFMPEGSilenceHandler()
@@ -556,13 +518,16 @@ class AuphonicProcessTask(VideoTaskMixin, Task):
                         "preset": rec.recorder.auphonic,
                         "title": str(rec.pk),
                         "action": "start",
-                        "input_file": (f"{rec.pk}.{self.format}", inp, mime),
+                        "input_file": (f"{rec.pk}.{AuphonicTasks.format}", inp, mime),
                     }
                 )
                 headers = {"Content-Type": data.content_type}
                 try:
                     with requests.post(
-                        self.url.as_string(), auth=self.auth, data=data, headers=headers
+                        url.as_string(),
+                        auth=AuphonicTasks.auth,
+                        data=data,
+                        headers=headers,
                     ) as resp:
                         resp.raise_for_status()
                         uuid = resp.json().get("data").get("uuid")
@@ -570,34 +535,36 @@ class AuphonicProcessTask(VideoTaskMixin, Task):
                         return uuid
                 except requests.exceptions.RequestException as e:
                     logger.error(f"Could not upload audio data to Auphonic: {e}")
-                    raise self.retry()
+                    raise task.retry()
 
-
-class AuphonicResultTask(VideoTaskMixin, Task):
-    ignore_result = True
-    default_retry_delay = 120
-    max_retries = 120
-
-    url = URL(settings.VIDEO_AUPHONIC_URL).add_path_segment("production")
-    auth = (settings.VIDEO_AUPHONIC_USERNAME, settings.VIDEO_AUPHONIC_PASSWORD)
-
-    def run(self, job, pk, **kwargs):
+    @shared_task(
+        bind=True,
+        ignore_result=True,
+        default_retry_delay=120,
+        max_retries=120,
+        name=f"{__name__}.Auphonic:retreive"
+    )
+    def retrieve(task, job, pk):
         logger.info(f"Fetching Auphonic result for {pk} from {job}")
+        url = (
+            URL(settings.VIDEO_AUPHONIC_URL)
+            .add_path_segment("production")
+            .add_path_segment(f"{job}.json")
+        )
         if not job:
             logger.info(f"No job ID specified for {pk}, skipping Auphonic result.")
             return
-        url = self.url.add_path_segment(f"{job}.json")
         try:
-            with requests.get(url.as_string(), auth=self.auth) as resp:
+            with requests.get(url.as_string(), auth=AuphonicTasks.auth) as resp:
                 resp.raise_for_status()
                 data = resp.json().get("data")
         except requests.exceptions.RequestException as e:
             logger.error(f"Could not fetch Auphonic result for {job}: {e}")
-            raise self.retry()
+            raise task.retry()
         status = data.get("status", None)
         if not status:
             logger.warn(f"Unable to determine status for Auphonic: {job}")
-            raise self.retry()
+            raise task.retry()
         if status == 2:
             logger.error(f"Error in production on Auphonic: {job}")
             return
@@ -606,7 +573,7 @@ class AuphonicResultTask(VideoTaskMixin, Task):
             return
         if status != 3:
             logger.info(f"Still processing on Auphonic: {job}")
-            raise self.retry()
+            raise task.retry()
         results = list(
             map(
                 lambda o: (
@@ -624,7 +591,9 @@ class AuphonicResultTask(VideoTaskMixin, Task):
                 download = result.get("download_url")
                 try:
                     logger.debug(f"Downloading Auphonic media: {download}")
-                    with requests.get(download, stream=True, auth=self.auth) as resp:
+                    with requests.get(
+                        download, stream=True, auth=AuphonicTasks.auth
+                    ) as resp:
                         resp.raise_for_status()
                         for chunk in resp.iter_content(
                             chunk_size=settings.VIDEO_AUPHONIC_CHUNK_SIZE
@@ -634,7 +603,7 @@ class AuphonicResultTask(VideoTaskMixin, Task):
                         output.flush()
                 except requests.exceptions.RequestException as e:
                     logger.error(f"Could not fetch Auphonic result for {job}: {e}")
-                    raise self.retry()
+                    raise task.retry()
             rec = Recording.objects.get(pk=pk)
             inp, maps = map(
                 chain.from_iterable,
@@ -655,7 +624,7 @@ class AuphonicResultTask(VideoTaskMixin, Task):
                 merge.run()
                 rec.online.save(output.name, File(output.file))
         try:
-            with requests.delete(url.as_string(), auth=self.auth) as resp:
+            with requests.delete(url.as_string(), auth=AuphonicTasks.auth) as resp:
                 resp.raise_for_status()
                 logger.debug(f"Removed production from Auphonic: {job}")
         except requests.exceptions.RequestException as e:

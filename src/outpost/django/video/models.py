@@ -146,9 +146,9 @@ class Epiphan(Recorder):
         if not self.online:
             return
         if self.provision:
-            from .tasks import EpiphanProvisionTask
+            from .tasks import EpiphanTasks
 
-            EpiphanProvisionTask().run(self.pk)
+            EpiphanTasks.provision.delay(self.pk)
 
     def reboot(self):
         url = self.url.path("admin/reboot.cgi").as_string()
@@ -504,9 +504,9 @@ class ZipStreamExport(Export):
 
     def process(self, notify):
         if "streams" not in self.recording.info:
-            from .tasks import ProcessRecordingTask
+            from .tasks import RecordingTasks
 
-            ProcessRecordingTask().run(self.pk)
+            RecordingTasks.process.run(self.pk)
         mapping = {"h264": "m4v", "aac": "m4a"}
         streams = []
         args = ["ffmpeg", "-y", "-i", self.recording.online.path]

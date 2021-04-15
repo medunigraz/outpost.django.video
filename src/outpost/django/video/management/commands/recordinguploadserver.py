@@ -15,11 +15,8 @@ from django.utils import timezone
 from ...conf import settings
 from ...models import Epiphan, EpiphanChannel, EpiphanRecording, Server
 from ...tasks import (
-    AuphonicProcessTask,
-    AuphonicResultTask,
-    MetadataRecordingTask,
-    NotifyRecordingTask,
-    ProcessRecordingTask,
+    AuphonicTasks,
+    RecordingTasks,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,12 +144,19 @@ class SFTPServer(asyncssh.SFTPServer):
         rec.ready = True
         rec.save()
         logger.info("Starting post-upload task chain")
-        tasks = [ProcessRecordingTask().si(rec.pk), MetadataRecordingTask().si(rec.pk)]
+        tasks = [
+            RecordingTasks.process.si(rec.pk),
+            RecordingTasks.metadata.si(rec.pk)
+        ]
         if rec.recorder.auphonic:
             tasks.extend(
-                [AuphonicProcessTask().si(rec.pk), AuphonicResultTask().s(rec.pk), ProcessRecordingTask().si(rec.pk)]
+                [
+                    AuphonicTasks.process.si(rec.pk),
+                    AuphonicTasks.retrieve.s(rec.pk),
+                    RecordingTasks.process.si(rec.pk)
+                ]
             )
-        tasks.append(NotifyRecordingTask().si(rec.pk))
+        tasks.append(RecordingTasks.notify.si(rec.pk))
         result = chain(*tasks).delay()
         logger.info(f"Done starting post-upload task chain: {result.id}")
 
