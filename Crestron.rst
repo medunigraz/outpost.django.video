@@ -1,11 +1,10 @@
+====================
 Crestron Integration
 ====================
 
 This document outlines the integration between Creston (Touchpanels) and the
 API server for managing live events.
 
-.. toctree::
-    :maxdepth: 2
 
 Starting a live event
 =====================

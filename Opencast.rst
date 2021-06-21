@@ -1,11 +1,10 @@
-Crestron Integration
+====================
+Opencast Integration
 ====================
 
 This document outlines the integration between Opencast (Portal) and the
 API server for managing live events.
 
-.. toctree::
-    :maxdepth: 2
 
 A live event is started
 =======================
