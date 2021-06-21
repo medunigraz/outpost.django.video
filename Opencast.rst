@@ -9,7 +9,7 @@ API server for managing live events.
 A live event is started
 =======================
 
-When a live event is initiated on the APIO server, it issues a HTTPS request to
+When a live event is initiated on the API server, it issues a HTTPS request to
 Opencast, containing a JSON body with all the information regarding this live
 event.
 
