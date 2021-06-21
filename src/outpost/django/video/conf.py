@@ -1,3 +1,4 @@
+from datetime import timedelta
 from appconf import AppConf
 from django.conf import settings
 
@@ -27,6 +28,8 @@ class VideoAppConf(AppConf):
     AUPHONIC_FORMAT = "flac"
     AUPHONIC_CHUNK_SIZE = 8192
     AUPHONIC_SILENCE_THRESHOLD = 0.9
+    LIVE_HLS_SEGEMENT = 2
+    LIVE_VIEWER_LIFETIME = timedelta(days=1)
 
     class Meta:
         prefix = "video"

@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.translation import ugettext_lazy as _
 from outpost.django.base.admin import NotificationInlineAdmin
 
 from . import models
@@ -111,3 +112,101 @@ class PanasonicCameraAdmin(admin.ModelAdmin):
 @admin.register(models.TranscribeLanguage)
 class TranscribeLanguageAdmin(admin.ModelAdmin):
     pass
+
+
+@admin.register(models.LivePortal)
+class LivePortalAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(models.LiveChannel)
+class LiveChannelAdmin(admin.ModelAdmin):
+    list_display = (
+        "pk",
+        "name",
+        "enabled",
+    )
+    list_filter = ("enabled",)
+
+
+@admin.register(models.LiveDeliveryServer)
+class LiveDeliveryServerAdmin(admin.ModelAdmin):
+    list_display = (
+        "base",
+        "online",
+    )
+    list_filter = ("online",)
+
+
+class LiveStreamVariantRequirementInline(admin.TabularInline):
+    model = models.LiveStreamVariantRequirement
+
+
+@admin.register(models.LiveStreamVariant)
+class LiveStreamVariantAdmin(admin.ModelAdmin):
+    list_display = (
+        "height",
+        "preset",
+        "profile",
+        "video",
+        "audio",
+    )
+    inlines = (
+        LiveStreamVariantRequirementInline,
+    )
+
+
+@admin.register(models.LiveTemplate)
+class LiveTemplateAdmin(admin.ModelAdmin):
+    pass
+
+
+class LiveTemplateStreamInline(admin.TabularInline):
+    model = models.LiveTemplateStream
+
+
+@admin.register(models.LiveTemplateScene)
+class LiveTemplateSceneAdmin(admin.ModelAdmin):
+    list_filter = ("template",)
+    search_fields = ("name",)
+    inlines = (
+        LiveTemplateStreamInline,
+    )
+
+
+class LiveStreamInline(admin.TabularInline):
+    model = models.LiveStream
+
+
+class LiveViewerInline(admin.TabularInline):
+    model = models.LiveViewer
+
+
+@admin.register(models.LiveEvent)
+class LiveEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "pk",
+        "channel",
+        "title",
+        "begin",
+        "end",
+        "public",
+    )
+    list_filter = ("channel", "public", "begin", "end")
+    search_fields = ("title", "description")
+    inlines = (
+        LiveStreamInline,
+        LiveViewerInline
+    )
+    actions = ("start", "stop")
+
+    def start(self, request, queryset):
+        for e in queryset.all():
+            e.start()
+    start.short_description = _('Start selected live events')
+
+    def stop(self, request, queryset):
+        for e in queryset.all():
+            e.stop()
+    stop.short_description = _('Stop selected live events')
+

@@ -1,0 +1,138 @@
+#!/bin/python3
+# vim: ai:ts=4:sw=4:ft=python
+
+import os
+import asyncio
+import signal
+import shutil
+from pathlib import Path
+
+
+GPU = "0"
+SEGMENT = "2"
+PREVIEW = "10"
+RUNTIME = Path(os.environ.get("RUNTIME_DIRECTORY"))
+BASE = Path("/var/www/vhosts/asd.medunigraz.at/livestreams")
+FFMPEG = shutil.which("ffmpeg")
+SSH = shutil.which("ssh")
+STREAMS = [
+{% for s in event.livestream_set.all %}
+    (
+        (
+            "-y",
+            "-hide_banner",
+            "-loglevel", "warning",
+            "-c:v", "h264_cuvid",
+            "-i", "{{ s.source }}",
+            "-filter_complex", "[0:v]split={{ s.variants.all|length }}{% for v in s.variants.all %}[v_{{ forloop.counter0 }}]{% endfor %}; "\
+            "{% for v in s.variants.all %}[v_{{ forloop.counter0 }}]scale=-1:{{ v.height }}[v_{{ forloop.counter0 }}_scaled]{% if not forloop.last %};{% endif %}{% endfor %}",
+{% for v in s.variants.all %}
+            "-map", "[v_{{ forloop.counter0 }}_scaled]", "-c:v:{{ forloop.counter0 }}", "h264_nvenc", "-gpu", GPU, "-b:v:0", "{{ v.video }}", "-maxrate:v:0", "{{ v.video }}", "-minrate:v:0", "{{ v.video }}", "-bufsize:v:0", "10M", "-preset", "{{ v.preset }}", "-profile:v", "{{ v.profile }}", "-g", "60", "-sc_threshold", "0", "-keyint_min", "60",
+            "-rc-lookahead", "0",
+{% endfor %}
+{% for v in s.variants.all %}
+            "-map", "0:a", "-c:a:0", "aac", "-b:a:{{ forloop.counter0 }}", "{{ v.audio }}",
+{% endfor %}
+            "-f", "hls",
+            "-hls_time", SEGMENT,
+            "-hls_flags", "independent_segments+delete_segments",
+            "-hls_segment_type", "mpegts",
+            "-hls_segment_filename", "{{ s.pk }}_%v_%05d.ts",
+            "-hls_list_size", "{{ s.list_size }}",
+            "-hls_delete_threshold", "{{ s.delete_threshold }}",
+            "-master_pl_name", "{{ s.pk }}.m3u8",
+            "-var_stream_map", "{% for v in s.variants.all %}v:{{ forloop.counter0 }},a:{{ forloop.counter0 }}{% if not forloop.last %} {% endif %}{% endfor %}",
+            "{{ s.pk }}_%v.m3u8",
+        ),
+        (
+            "-y",
+            "-hide_banner",
+            "-loglevel", "warning",
+            "-rtsp_transport", "tcp",
+            "-c:v", "h264_cuvid",
+            "-i", "{{ s.source }}",
+            f"-filter_complex", "[0:v]fps=fps=1/{PREVIEW}[out]",
+            "-map", "[out]", "-vcodec", "mjpeg",
+            "-f", "tee", "[f=image2:update=1]{{ s.pk }}.jpg|[f=image2:update=1]{{ s.pk }}.jpg.webp"
+        ),
+        #(
+        #    "-i", "/tmp/bla",
+        #    "-R", "/tmp/remote.socket.transcode:/tmp/local/transcode",
+        #    "-R", "/tmp/remote.socket.preview:/tmp/local/preview",
+        #    "-N",
+        #    "-a",
+        #    "-q",
+        #    "-o", "ServerAliveInterval=10",
+        #    "-o", "IdentitiesOnly=yes",
+        #    "-l", "username",
+        #    "sj074.medunigraz.at"
+        #)
+    ),
+{% endfor %}
+]
+
+HTACCESS = '''
+AddType image/webp .webp
+<FilesMatch "\.(m3u8|ts)$">
+    Header set Cache-Control "max-age={SEGMENT},public"
+</FilesMatch>
+<FilesMatch "\.jpg$">
+    Header set Cache-Control "max-age={PREVIEW},public"
+</FilesMatch>
+RewriteEngine on
+RewriteCond %{{HTTP_ACCEPT}} image/webp
+RewriteCond %{{REQUEST_FILENAME}}.webp -f
+RewriteRule \.(png|jpg|jpeg)$ %{{REQUEST_URI}}.webp [L]
+'''
+
+
+async def ffmpeg(args):
+    return await asyncio.create_subprocess_exec(FFMPEG, *args, cwd=str(BASE))
+
+
+async def tunnel_loop(args):
+    try:
+        while True:
+            proc = await asyncio.create_subprocess_exec(SSH, *args)
+            await proc.wait()
+    except asyncio.CancelledError:
+        if proc:
+            if not proc.returncode:
+                proc.terminate()
+        raise
+
+
+async def tunnel(args):
+    return asyncio.create_task(tunnel_loop(args))
+
+
+async def manager(stop):
+    BASE.mkdir(parents=True, exist_ok=True)
+    with BASE.joinpath(".htaccess").open("w") as htaccess:
+        htaccess.write(HTACCESS.format(SEGMENT=SEGMENT, PREVIEW=PREVIEW))
+
+    procs = [(await ffmpeg(t), await ffmpeg(p)) for (t, p) in STREAMS]
+    await stop
+    for t, p in procs:
+        t.terminate()
+        p.terminate()
+    for t, p in procs:
+        try:
+            await asyncio.wait_for(t.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            if not t.returncode:
+                t.kill()
+        try:
+            await asyncio.wait_for(p.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            if not p.returncode:
+                p.kill()
+    shutil.rmtree(BASE)
+
+loop = asyncio.get_event_loop()
+
+stop = loop.create_future()
+loop.add_signal_handler(signal.SIGINT, stop.set_result, None)
+loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
+
+loop.run_until_complete(manager(stop))

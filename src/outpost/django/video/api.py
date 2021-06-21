@@ -6,7 +6,10 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.permissions import DjangoModelPermissions
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet, ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
+from rest_flex_fields.views import FlexFieldsMixin
+
+from outpost.django.base.decorators import docstring_format
 
 from .permissions import EpiphanChannelPermissions
 from .serializers import (
@@ -17,6 +20,9 @@ from .serializers import (
     RecorderSerializer,
     RecordingAssetSerializer,
     RecordingSerializer,
+    LiveChannelSerializer,
+    LiveTemplateSerializer,
+    LiveTemplateSceneSerializer,
 )
 from .tasks import ExportTasks
 
@@ -28,6 +34,9 @@ from .models import (  # Broadcast,; EventAudio,; EventMedia,; EventVideo,; Publ
     Recorder,
     Recording,
     RecordingAsset,
+    LiveChannel,
+    LiveTemplate,
+    LiveTemplateScene,
 )
 
 
@@ -126,3 +135,34 @@ class EpiphanSourceViewSet(ModelViewSet):
     serializer_class = EpiphanSourceSerializer
     permission_classes = (DjangoModelPermissions,)
     filter_fields = ("epiphan",)
+
+
+@docstring_format(
+    model=LiveChannel.__doc__, serializer=LiveChannelSerializer.__doc__
+)
+class LiveChannelViewSet(ReadOnlyModelViewSet):
+    queryset = LiveChannel.objects.filter(enabled=True)
+    serializer_class = LiveChannelSerializer
+    permission_classes = (DjangoModelPermissions,)
+    #filter_fields = ("epiphan",)
+
+
+@docstring_format(
+    model=LiveTemplate.__doc__, serializer=LiveTemplateSerializer.__doc__
+)
+class LiveTemplateViewSet(FlexFieldsMixin, ReadOnlyModelViewSet):
+    queryset = LiveTemplate.objects.all()
+    serializer_class = LiveTemplateSerializer
+    permission_classes = (DjangoModelPermissions,)
+    permit_list_expands = ("livetemplatescene_set",)
+    #filter_fields = ("epiphan",)
+
+
+@docstring_format(
+    model=LiveTemplateScene.__doc__, serializer=LiveTemplateSceneSerializer.__doc__
+)
+class LiveTemplateSceneViewSet(ReadOnlyModelViewSet):
+    queryset = LiveTemplateScene.objects.all()
+    serializer_class = LiveTemplateSceneSerializer
+    permission_classes = (DjangoModelPermissions,)
+    #filter_fields = ("epiphan",)

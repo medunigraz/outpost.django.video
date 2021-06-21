@@ -2,13 +2,16 @@ import io
 import logging
 import os
 import re
+import certifi
 import subprocess
 import django
 from base64 import b64encode
+from collections import Counter
 from datetime import timedelta
-from functools import partial, reduce
+from functools import partial, reduce, lru_cache
 from hashlib import sha256
 from math import ceil
+from redis import Redis
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from zipfile import ZipFile
 
@@ -17,14 +20,22 @@ import requests
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
+from django.contrib.sites.models import Site
 from django.contrib.staticfiles import finders
 from django.core.cache import cache
 from django.core.files import File
 from django.core.files.storage import FileSystemStorage
 from django.core.validators import RegexValidator
 from django.db import models
+from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from django.template import Context, Template
+from django.template.loader import render_to_string
 from django_extensions.db.models import TimeStampedModel
+from django_extensions.db.fields import ShortUUIDField
+from django_sshworker.models import Job
+from markupfield.fields import MarkupField
 from imagekit.models import ProcessedImageField
 from imagekit.processors import ResizeToFill
 from memoize import delete_memoized, memoize
@@ -33,11 +44,16 @@ from ordered_model.models import OrderedModel
 from outpost.django.base.decorators import signal_connect
 from outpost.django.base.models import NetworkedDeviceMixin
 from outpost.django.base.utils import Process, Uuid4Upload
+from outpost.django.base.validators import RedisURLValidator, UnitValidator
+from outpost.django.geo.models import Room
+from outpost.django.campusonline.models import Course, CourseGroupTerm, Person
 from PIL import Image
 from polymorphic.models import PolymorphicModel
 from purl import URL
 from webvtt import Caption, WebVTT
+from django_sshworker.models import Job, Resource, JobConstraint
 
+from .conf import settings
 from .utils import FFMPEGProgressHandler
 
 logger = logging.getLogger(__name__)
@@ -544,20 +560,362 @@ class TranscribeLanguage(OrderedModel):
         return f"{self.name} ({self.code})"
 
 
-# class Opencast(models.Model):
-#    url = models.URLField()
-#    username = models.CharField(max_length=128)
-#    password = models.CharField(max_length=128)
-#    enabled = models.BooleanField(default=False)
-#
-#    def __str__(self):
-#        return self.url
-#
-#
-# class Event(models.Model):
-#    opencast = models.ForeignKey("Opencast)")
-#
-#
+class LivePortal(models.Model):
+    name = models.CharField(max_length=512)
+    control = models.URLField()
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def auth(self):
+        return requests.auth.HTTPBasicAuth(self.username, self.password)
+
+    def start(self, event, request=None):
+        payload = {
+            "id": event.channel.pk,
+            "viewer": event.viewer(request),
+            "title": event.title,
+            "description": event.description,
+            "public": event.public,
+            "previews": event.previews()
+        }
+        try:
+            resp = requests.put(
+                self.control,
+                json=payload,
+                auth=self.auth,
+                timeout=settings.VIDEO_LIVE_PORTAL_TIMEOUT.total_seconds()
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Failed to notify {self} of event {event} start: {e}")
+
+    def stop(self, event):
+        payload = {
+            "id": event.pk,
+        }
+        try:
+            resp = requests.delete(
+                self.control,
+                json=payload,
+                auth=self.auth,
+                timeout=settings.VIDEO_LIVE_PORTAL_TIMEOUT.total_seconds()
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Failed to notify {self} of event {event} start: {e}")
+
+
+class LiveChannel(models.Model):
+    id = ShortUUIDField(primary_key=True)
+    name = models.CharField(max_length=512)
+    enabled = models.BooleanField(default=False)
+    portals = models.ManyToManyField(LivePortal)
+
+    def __str__(self):
+        return self.name
+
+
+@signal_connect
+class LiveDeliveryServer(models.Model):
+    base = models.URLField()
+    config = models.CharField(
+        max_length=256,
+        validators=[
+            RedisURLValidator()
+        ],
+    )
+    online = models.BooleanField(default=False, editable=False)
+    timeout = models.PositiveSmallIntegerField(default=5)
+
+    def __str__(self):
+        return self.base
+
+    def is_alive(self):
+        try:
+            requests.get(self.base, timeout=self.timeout).raise_for_status()
+        except requests.exceptions.RequestException:
+            return False
+        return True
+
+    def pre_save(self, *args, **kwargs):
+        self.online = self.is_alive()
+
+    @property
+    @lru_cache()
+    def redis(self):
+        url = URL(self.config)
+        if url.scheme() == "unix":
+            return Redis(unix_socket_path=url.path())
+        if url.scheme() == "redis":
+            return Redis(host=url.host(), port=url.port(), db=int(url.query_param('db') or 0))
+        if url.scheme() == "redis+tls":
+            return Redis(host=url.host(), port=url.port(), db=int(url.query_param('db') or 0), ssl=True, ssl_ca_certs=certifi.where())
+        raise Exception(f"{self.config} is not a valid Redis URL")
+
+
+class LiveEvent(models.Model):
+    id = ShortUUIDField(primary_key=True)
+    channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
+    public = models.BooleanField(default=False)
+    begin = models.DateTimeField(null=True, editable=False)
+    end = models.DateTimeField(null=True, editable=False)
+    title = models.CharField(max_length=512)
+    description = MarkupField(default_markup_type='markdown')
+    delivery = models.ManyToManyField(LiveDeliveryServer)
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, null=True, editable=False)
+
+    @property
+    def script(self):
+        return render_to_string("video/live/event.script", {"event": self})
+
+    def start(self):
+        self.begin = timezone.now()
+        if not self.job:
+            self.job = Job.objects.create(
+                script=self.script
+            )
+            requirements = self.livestream_set.values_list(
+                "variants__livestreamvariantrequirement__resource",
+                "variants__livestreamvariantrequirement__slots"
+            )
+            required = sum([Counter({Resource.objects.get(pk=r): s}) for r, s in requirements], Counter())
+            for r, c in required.items():
+                JobConstraint.objects.create(
+                    job=self.job,
+                    resource=r,
+                    required=c
+                )
+            self.job.assign()
+            self.job.start()
+        # Notify portal
+        for portal in self.channel.portals.all():
+            portal.start(self)
+        self.save()
+
+    def stop(self):
+        from .tasks import LiveEventTasks
+        self.end = timezone.now()
+        if self.job:
+            self.job.stop()
+        for portal in self.channel.portals.all():
+            portal.stop(self)
+        self.save()
+        LiveEventTasks.cleanup.delay(self.pk)
+
+    def url(self, request):
+        path = reverse("video:live-viewer", kwargs={"event_id": self.pk})
+        if request:
+            return request.build_absolute_uri(path)
+        return URL(
+            scheme="https",
+            host=Site.objects.get_current().domain,
+            path=path
+        ).as_string()
+
+    def previews(self):
+        data = dict()
+        for s in self.stream_set.all():
+            data[s.type] = list()
+            for d in self.delivery.all():
+                url = URL(d.base).add_path_segment(self.pk).add_path_segment(f"{s.pk}.jpg")
+                data.get(s.type).append(url.as_string())
+        return data
+
+
+class LiveStreamVariant(models.Model):
+    height = models.PositiveSmallIntegerField()
+    preset = models.CharField(max_length=32)
+    profile = models.CharField(max_length=32)
+    video = models.CharField(
+        max_length=16,
+        #validators=[
+        #    UnitValidator("byte")
+        #],
+    )
+    audio = models.CharField(
+        max_length=16,
+        #validators=[
+        #    UnitValidator("byte")
+        #],
+    )
+
+    def __str__(self):
+        return f"{self.height}@{self.video}"
+
+
+class LiveStreamVariantRequirement(models.Model):
+    variant = models.ForeignKey(LiveStreamVariant, on_delete=models.CASCADE)
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
+    slots = models.PositiveIntegerField()
+
+
+@signal_connect
+class LiveViewer(models.Model):
+    id = ShortUUIDField(primary_key=True)
+    event = models.ForeignKey(LiveEvent, on_delete=models.CASCADE)
+    created = models.DateTimeField(auto_now_add=True)
+    delivery = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
+
+    def pre_save(self, *args, **kwargs):
+        if not self.delivery:
+            self.delivery = LiveDeliveryServer.objects.filter(online=True).order_by("?").first()
+
+    def post_save(self, *args, **kwargs):
+        if not self.event.end:
+            self.delivery.redis.setex(f"HLS/{self.pk}", self.event.pk, settings.VIDEO_LIVE_VIEWER_LIFETIME.total_seconds())
+
+    def disable(self):
+        self.delivery.redis.delete(f"HLS/{self.pk}")
+
+    def stats(self):
+        for stream in self.event.streams.all():
+            segments = self.delivery.redis.hgetall(f"HLS/{self.pk}/{stream.pk}")
+            entries = [LiveViewerStatistic(stream=stream, datetime=t, s=self.event.streams.get(pk=s)) for t, s in segments.items()]
+            LiveViewerStatistic.objects.bulk_create(entries)
+
+    def cleanup(self):
+        self.delivery.redis.delete(f"HLS/{self.pk}")
+        for stream in self.event.streams.all():
+            self.delivery.redis.delete(f"HLS/{self.pk}/{stream.pk}")
+
+    def __str__(self):
+        return f"{self.event}: {self.id} ({self.delivery})"
+
+
+class LiveStream(models.Model):
+    id = ShortUUIDField(primary_key=True)
+    event = models.ForeignKey(LiveEvent, on_delete=models.CASCADE)
+    type = models.CharField(max_length=128)
+    source = models.CharField(max_length=512)
+    variants = models.ManyToManyField(LiveStreamVariant)
+    list_size = models.PositiveIntegerField()
+    delete_threshold = models.PositiveIntegerField()
+
+    def __str__(self):
+        return f"{self.event}: {self.type}"
+
+    def viewer(self, viewer: LiveViewer):
+        url = reduce(
+            lambda u, s: u.add_path_segment(s),
+            (
+                viewer.event.pk,
+                viewer.pk,
+                f"{self.pk}.m3u8"
+            ),
+            URL(viewer.delivery.base)
+        )
+        return url.as_string()
+
+    def stats(self):
+        accumulator = dict()
+        for delivery in self.event.delivery.filter(online=True):
+            timestamps = delivery.redis.hgetall(f"HLS/{self.event.pk}/{self.pk}")
+            for t, c in timestamps.items():
+                accumulator[t] = accumulator.get(t, 0) + int(c)
+        LiveStreamStatistic.objects.bulk_create(
+            [LiveStreamStatistic(stream=self, datetime=t, viewers=c) for t, c in accumulator.items()]
+        )
+
+    def cleanup(self):
+        for delivery in self.event.delivery.filter(online=True):
+            delivery.redis.delete(f"HLS/{self.event.pk}/{self.pk}")
+
+
+class LiveStreamStatistic(models.Model):
+    stream = models.ForeignKey(LiveStream, on_delete=models.CASCADE)
+    datetime = models.DateTimeField()
+    viewers = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.stream}@{self.datetime}"
+
+
+class LiveViewerStatistic(models.Model):
+    viewer = models.ForeignKey(LiveViewer, on_delete=models.CASCADE)
+    datetime = models.DateTimeField()
+    stream = models.ForeignKey(LiveStream)
+
+
+class LiveTemplate(models.Model):
+    name = models.CharField(max_length=128)
+    room = models.ForeignKey(Room, on_delete=models.DO_NOTHING)
+    channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
+    title = models.CharField(max_length=512)
+    description = MarkupField(default_markup_type='markdown')
+
+    def __str__(self):
+        return f"{self.name} ({self.room})"
+
+
+class LiveTemplateScene(models.Model):
+    template = models.ForeignKey(LiveTemplate, on_delete=models.CASCADE)
+    name = models.CharField(max_length=128)
+
+    def __str__(self):
+        return f"{self.template}: {self.name}"
+
+    def instantiate(self, public=True):
+        from outpost.django.campusonline.serializers import PersonSerializer, CourseSerializer
+        cgt = (
+            CourseGroupTerm.objects.filter(
+                room=self.template.room.campusonline,
+                start__lte=timezone.now() + timedelta(minutes=30),
+                end__gte=timezone.now(),
+            )
+            .values("start", "end", "person", "title", "coursegroup__course")
+            .distinct()
+            .first()
+        )
+        if not cgt:
+            logger.warn("No Course Group Term found")
+            campusonline = dict()
+        else:
+            try:
+                course = Course.objects.get(pk=cgt.get("coursegroup__course"))
+            except Course.DoesNotExists as e:
+                logger.warn(f"No Course found: {e}")
+                course = None
+            try:
+                presenter = Person.objects.get(pk=cgt.get("person"))
+            except Person.DoesNotExist as e:
+                logger.warn(f"No Person found: {e}")
+                presenter = None
+            campusonline = {
+                "title": cgt.get("title", ""),
+                "presenter": PersonSerializer(presenter).data if presenter else None,
+                "course": CourseSerializer(course).data if course else None,
+            }
+        context = Context({"scene": self, "campusonline": campusonline})
+        event = models.LiveEvent.objects.create(
+            channel=self.template.channel,
+            public=public,
+            title=Template(self.template.title).render(context),
+            description=Template(self.template.description).render(context)
+        )
+        for ts in self.livetemplatestreams.all():
+            stream = models.LiveStream.objects.create(
+                event=event,
+                source=ts.source.rtsp,
+            )
+            for tv in ts.variants.all():
+                stream.variants.add(tv)
+        return event
+
+
+class LiveTemplateStream(models.Model):
+    scene = models.ForeignKey(LiveTemplateScene, on_delete=models.CASCADE)
+    type = models.CharField(max_length=128)
+    source = models.ForeignKey(EpiphanSource, on_delete=models.CASCADE)
+    variants = models.ManyToManyField(LiveStreamVariant)
+    list_size = models.PositiveIntegerField()
+    delete_threshold = models.PositiveIntegerField()
+
+
+
+
+
 # class Transcription(models.Model):
 #    event = models.ForeignKey("Event)")
 #    language = models.ForeignKey("TranscribeLanguage")

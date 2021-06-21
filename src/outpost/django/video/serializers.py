@@ -2,6 +2,7 @@ from outpost.django.api.serializers import Base64FileField
 from outpost.django.campusonline.serializers import CourseSerializer, PersonSerializer
 from outpost.django.geo.serializers import RoomSerializer
 from rest_framework import serializers
+from rest_flex_fields import FlexFieldsModelSerializer
 
 from . import models
 
@@ -82,3 +83,39 @@ class RecordingAssetSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.RecordingAsset
         fields = "__all__"
+
+
+class LiveChannelSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.LiveChannel
+        fields = (
+            "id",
+            "name",
+        )
+
+
+class LiveTemplateSceneSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.LiveTemplateScene
+        fields = (
+            "id",
+            "name",
+        )
+
+
+class LiveTemplateSerializer(FlexFieldsModelSerializer):
+
+    class Meta:
+        model = models.LiveTemplate
+        fields = (
+            "id",
+            "name",
+            "room",
+            "livetemplatescene_set",
+        )
+
+    expandable_fields = {
+            "livetemplatescene_set": (LiveTemplateSceneSerializer, {"source": "livetemplatescene_set", "many": True})
+    }

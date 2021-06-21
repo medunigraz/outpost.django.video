@@ -48,6 +48,8 @@ from .models import (  # EventAudio,; EventVideo,
     Export,
     Recorder,
     Recording,
+    LiveEvent,
+    LiveDeliveryServer,
 )
 
 logger = logging.getLogger(__name__)
@@ -629,3 +631,32 @@ class AuphonicTasks:
                 logger.debug(f"Removed production from Auphonic: {job}")
         except requests.exceptions.RequestException as e:
             logger.error(f"Could not remove Auphonic production for {job}: {e}")
+
+
+class LiveEventTasks:
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:cleanup")
+    def cleanup(task, pk):
+        logger.debug(f"Cleaning up live event: {pk}")
+        event = LiveEvent.objects.get(pk=pk)
+        for viewer in event.viewers.all():
+            viewer.disable()
+            viewer.stats()
+            viewer.cleanup()
+
+
+class LiveDeliveryServerTasks:
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveDeliveryServer:check")
+    def check(task):
+        for d in LiveDeliveryServer.objects.all():
+            if not d.is_alive():
+                if d.online:
+                    logger.warning(f"Delivery server {d} offline")
+                    d.online = False
+                    d.save()
+            else:
+                if not d.online:
+                    logger.info(f"Delivery server {d} online")
+                    d.online = True
+                    d.save()
