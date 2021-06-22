@@ -577,7 +577,7 @@ class LivePortal(models.Model):
             "viewer": event.viewer(request),
             "title": event.title,
             "description": event.description,
-            "public": event.public,
+            "unrestricted": event.public,
             "previews": event.previews()
         }
         try:

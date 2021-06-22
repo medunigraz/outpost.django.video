@@ -28,7 +28,7 @@ treated as a failure to notify Opencast of this new live event.
         "viewer": "https://api.medunigraz.at/video/live/viewer/<eventid>/",
         "title": "lorem ipsum",
         "description": "Lorem <strong>ipsum dolor</strong> sit amet, <a href=\"https://www.medunigraz.at/\">consetetur</a> sadipscing elitr, ...",
-        "public": true
+        "unrestricted": true
         "previews": {
             "presenter": [
                 "https://1.asd.medunigraz.at/livestream/<eventid>/<stream1id>.jpg",
@@ -49,7 +49,7 @@ Keys
 reference this live event on the API server in various requests.
 `.title`: Titel of the live event
 `.description`: Teaser/Description of the live event, may contain HTML.
-`.public`: Boolean flag that singals if the event is public (`true`) or private (`false`).
+`.unrestricted`: Boolean flag that singals if the event is public (`true`) or private (`false`).
 `.previews`: A dictionary of live streams used in this event (keys are usually *presenter* and *slides*).
 `.previews.<stream>`: A list of URLs for preview images of the live stream. A user-facing portal should randomly select one URL from this list and present it to the user. The preview images will be updated at an interval of 10 seconds.
 
