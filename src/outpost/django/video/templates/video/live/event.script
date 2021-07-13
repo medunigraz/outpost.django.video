@@ -2,74 +2,44 @@
 # vim: ai:ts=4:sw=4:ft=python
 
 import os
+import sys
 import asyncio
 import signal
 import shutil
+import json
 from pathlib import Path
 
 
-GPU = "0"
+GPU = "{{ properties.gpuid }}"
 SEGMENT = "2"
 PREVIEW = "10"
-RUNTIME = Path(os.environ.get("RUNTIME_DIRECTORY"))
-BASE = Path("/var/www/vhosts/asd.medunigraz.at/livestreams")
+#RUNTIME = Path(os.environ.get("RUNTIME_DIRECTORY"))
+BASE = Path("/var/www/vhosts/asd.medunigraz.at/livestreams/{{ event.pk }}/")
 FFMPEG = shutil.which("ffmpeg")
+FFPROBE = shutil.which("ffprobe")
 SSH = shutil.which("ssh")
 STREAMS = [
 {% for s in event.livestream_set.all %}
-    (
-        (
-            "-y",
-            "-hide_banner",
-            "-loglevel", "warning",
-            "-c:v", "h264_cuvid",
-            "-i", "{{ s.source }}",
-            "-filter_complex", "[0:v]split={{ s.variants.all|length }}{% for v in s.variants.all %}[v_{{ forloop.counter0 }}]{% endfor %}; "\
-            "{% for v in s.variants.all %}[v_{{ forloop.counter0 }}]scale=-1:{{ v.height }}[v_{{ forloop.counter0 }}_scaled]{% if not forloop.last %};{% endif %}{% endfor %}",
+    {
+        "name": "{{ s.pk }}",
+        "source": "{{ s.source }}",
+        "list_size": "{{ s.list_size }}",
+        "delete_threshold": "{{ s.delete_threshold }}",
+        "variants": {
 {% for v in s.variants.all %}
-            "-map", "[v_{{ forloop.counter0 }}_scaled]", "-c:v:{{ forloop.counter0 }}", "h264_nvenc", "-gpu", GPU, "-b:v:0", "{{ v.video }}", "-maxrate:v:0", "{{ v.video }}", "-minrate:v:0", "{{ v.video }}", "-bufsize:v:0", "10M", "-preset", "{{ v.preset }}", "-profile:v", "{{ v.profile }}", "-g", "60", "-sc_threshold", "0", "-keyint_min", "60",
-            "-rc-lookahead", "0",
+            "{{ forloop.counter0 }}": {
+                "height": "{{ v.height }}",
+                "preset": "{{ v.preset }}",
+                "profile": "{{ v.profile }}",
+                "video": "{{ v.video }}",
+                "audio": "{{ v.audio }}",
+            },
 {% endfor %}
-{% for v in s.variants.all %}
-            "-map", "0:a", "-c:a:0", "aac", "-b:a:{{ forloop.counter0 }}", "{{ v.audio }}",
-{% endfor %}
-            "-f", "hls",
-            "-hls_time", SEGMENT,
-            "-hls_flags", "independent_segments+delete_segments",
-            "-hls_segment_type", "mpegts",
-            "-hls_segment_filename", "{{ s.pk }}_%v_%05d.ts",
-            "-hls_list_size", "{{ s.list_size }}",
-            "-hls_delete_threshold", "{{ s.delete_threshold }}",
-            "-master_pl_name", "{{ s.pk }}.m3u8",
-            "-var_stream_map", "{% for v in s.variants.all %}v:{{ forloop.counter0 }},a:{{ forloop.counter0 }}{% if not forloop.last %} {% endif %}{% endfor %}",
-            "{{ s.pk }}_%v.m3u8",
-        ),
-        (
-            "-y",
-            "-hide_banner",
-            "-loglevel", "warning",
-            "-rtsp_transport", "tcp",
-            "-c:v", "h264_cuvid",
-            "-i", "{{ s.source }}",
-            f"-filter_complex", "[0:v]fps=fps=1/{PREVIEW}[out]",
-            "-map", "[out]", "-vcodec", "mjpeg",
-            "-f", "tee", "[f=image2:update=1]{{ s.pk }}.jpg|[f=image2:update=1]{{ s.pk }}.jpg.webp"
-        ),
-        #(
-        #    "-i", "/tmp/bla",
-        #    "-R", "/tmp/remote.socket.transcode:/tmp/local/transcode",
-        #    "-R", "/tmp/remote.socket.preview:/tmp/local/preview",
-        #    "-N",
-        #    "-a",
-        #    "-q",
-        #    "-o", "ServerAliveInterval=10",
-        #    "-o", "IdentitiesOnly=yes",
-        #    "-l", "username",
-        #    "sj074.medunigraz.at"
-        #)
-    ),
+        },
+    },
 {% endfor %}
 ]
+
 
 HTACCESS = '''
 AddType image/webp .webp
@@ -85,15 +55,136 @@ RewriteCond %{{REQUEST_FILENAME}}.webp -f
 RewriteRule \.(png|jpg|jpeg)$ %{{REQUEST_URI}}.webp [L]
 '''
 
+async def inspect(stream):
+    proc = await asyncio.create_subprocess_exec(
+        FFPROBE,
+        "-hide_banner",
+        "-loglevel", "fatal",
+        "-print_format", "json",
+        "-show_error",
+        "-show_format",
+        "-show_streams",
+        stream.get("source"),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(BASE)
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise Exception("Field to inspect stream {source}: {stderr}".format(
+            source=stream.get("source"),
+            stderr=stderr
+        ))
+    stream["metadata"] = json.loads(stdout)
+    return stream
 
-async def ffmpeg(args):
-    return await asyncio.create_subprocess_exec(FFMPEG, *args, cwd=str(BASE))
+
+async def preview(stream):
+    name = stream.get("name")
+    return await asyncio.create_subprocess_exec(
+        FFMPEG,
+        "-y",
+        "-hide_banner",
+        "-loglevel", "warning",
+        "-rtsp_transport", "tcp",
+        "-c:v", "h264_cuvid",
+        "-i", stream.get("source"),
+        f"-filter_complex", f"[0:v]fps=fps=1/{PREVIEW}[out]",
+        "-map", "[out]", "-vcodec", "mjpeg",
+        "-f", "tee", f"[f=image2:update=1]{name}.jpg|[f=image2:update=1]{name}.jpg.webp",
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        cwd=str(BASE)
+    )
 
 
-async def tunnel_loop(args):
+async def transcode(stream):
+    name = stream.get("name")
+    variants = stream.get("variants")
+    has_audio = any(filter(
+        lambda s: s.get("codec_type") == "audio",
+        stream.get("metadata").get("streams")
+    ))
+    filters = [
+        "[0:v]split={length}{maps}".format(
+            length=str(len(variants)),
+            maps="".join([f"[v_{v}]" for v in variants.keys()])
+        )
+    ]
+    maps = []
+    embeds = []
+    for v, vdata in variants.items():
+        height = vdata.get("height")
+        filters.append(f"[v_{v}]scale=-1:{height}[v_{v}_scaled]")
+        maps.extend([
+            "-map", f"[v_{v}_scaled]",
+            f"-c:v:{v}", "h264_nvenc",
+            "-gpu", GPU,
+            "-b:v:0", vdata.get("video"),
+            "-maxrate:v:0", vdata.get("video"),
+            "-minrate:v:0", vdata.get("video"),
+            "-bufsize:v:0", "10M",
+            "-preset", vdata.get("preset"),
+            "-profile:v", vdata.get("profile"),
+            "-g", "60",
+            "-sc_threshold", "0",
+            "-keyint_min", "60",
+            "-rc-lookahead", "0",
+        ])
+        if has_audio:
+            embeds.append(f"v:{v},a:{v}")
+        else:
+            embeds.append(f"v:{v}")
+
+    if has_audio:
+        for v, vdata in variants.items():
+            maps.extend([
+                "-map", "0:a",
+                "-c:a:0", "aac",
+                f"-b:a:{v}", vdata.get("audio"),
+            ])
+
+    return await asyncio.create_subprocess_exec(
+        FFMPEG,
+        "-y",
+        "-hide_banner",
+        "-loglevel", "warning",
+        "-c:v", "h264_cuvid",
+        "-i", stream.get("source"),
+        "-filter_complex", ";".join(filters),
+        *maps,
+        "-f", "hls",
+        "-hls_time", SEGMENT,
+        "-hls_flags", "independent_segments+delete_segments",
+        "-hls_segment_type", "mpegts",
+        "-hls_segment_filename", f"{name}_%v_%05d.ts",
+        "-hls_list_size", stream.get("list_size"),
+        "-hls_delete_threshold", stream.get("delete_threshold"),
+        "-master_pl_name", f"{name}.m3u8",
+        "-var_stream_map", " ".join(embeds),
+        f"{name}_%v.m3u8",
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        cwd=str(BASE)
+    )
+
+
+async def tunnel_loop(stream):
     try:
         while True:
-            proc = await asyncio.create_subprocess_exec(SSH, *args)
+            proc = await asyncio.create_subprocess_exec(
+                SSH,
+                "-i", "/tmp/bla",
+                "-R", "/tmp/remote.socket.transcode:/tmp/local/transcode",
+                "-R", "/tmp/remote.socket.preview:/tmp/local/preview",
+                "-N",
+                "-a",
+                "-q",
+                "-o", "ServerAliveInterval=10",
+                "-o", "IdentitiesOnly=yes",
+                "-l", "username",
+                "sj074.medunigraz.at"
+            )
             await proc.wait()
     except asyncio.CancelledError:
         if proc:
@@ -102,7 +193,7 @@ async def tunnel_loop(args):
         raise
 
 
-async def tunnel(args):
+async def tunnel(stream):
     return asyncio.create_task(tunnel_loop(args))
 
 
@@ -111,7 +202,10 @@ async def manager(stop):
     with BASE.joinpath(".htaccess").open("w") as htaccess:
         htaccess.write(HTACCESS.format(SEGMENT=SEGMENT, PREVIEW=PREVIEW))
 
-    procs = [(await ffmpeg(t), await ffmpeg(p)) for (t, p) in STREAMS]
+    streams = await asyncio.gather(*[inspect(s) for s in STREAMS])
+    procs = await asyncio.gather(
+        *[asyncio.gather(transcode(s), preview(s)) for s in streams]
+    )
     await stop
     for t, p in procs:
         t.terminate()

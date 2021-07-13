@@ -26,14 +26,14 @@ class LiveRoom(LoginRequiredMixin, View):
         template = get_object_or_404(models.LiveTemplate, pk=template_id)
         scene = get_object_or_404(models.LiveTemplateScene, pk=scene_id, template=template)
         event = scene.instantiate(public)
-        event.run()
+        event.start()
         return HttpResponse()
 
     @method_decorator(permission_required('video.delete_liveevent', raise_exception=True))
     def delete(self, template_id):
         template = get_object_or_404(models.LiveTemplate, pk=template_id)
-        for le in get_list_or_404(template.channel.liveevent_set.all(), end__is_null=True):
-            le.stop()
+        for event in get_list_or_404(template.channel.liveevent_set.all(), end__is_null=True):
+            event.stop()
         return HttpResponse()
 
 

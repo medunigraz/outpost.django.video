@@ -644,6 +644,12 @@ class LiveEventTasks:
             viewer.stats()
             viewer.cleanup()
 
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:is_alive")
+    def is_alive(task):
+        for le in LiveEvent.objects.filter(end=None).exclude(job=None):
+            if not le.job.is_alive():
+                le.stop()
+
 
 class LiveDeliveryServerTasks:
 

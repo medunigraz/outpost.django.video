@@ -31,7 +31,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.template import Context, Template
-from django.template.loader import render_to_string
+from django.template.loader import get_template
 from django_extensions.db.models import TimeStampedModel
 from django_extensions.db.fields import ShortUUIDField
 from django_sshworker.models import Job
@@ -563,20 +563,27 @@ class TranscribeLanguage(OrderedModel):
 class LivePortal(models.Model):
     name = models.CharField(max_length=512)
     control = models.URLField()
+    username = models.CharField(max_length=128, null=True, blank=True)
+    password = models.CharField(max_length=128, null=True, blank=True)
+    timeout = models.PositiveSmallIntegerField(default=5)
 
     def __str__(self):
         return self.name
 
     @property
     def auth(self):
-        return requests.auth.HTTPBasicAuth(self.username, self.password)
+        if self.username and self.password:
+            return requests.auth.HTTPBasicAuth(
+                self.username,
+                self.password
+            )
 
     def start(self, event, request=None):
         payload = {
             "id": event.channel.pk,
             "viewer": event.viewer(request),
             "title": event.title,
-            "description": event.description,
+            "description": event.description.rendered,
             "unrestricted": event.public,
             "previews": event.previews()
         }
@@ -585,7 +592,7 @@ class LivePortal(models.Model):
                 self.control,
                 json=payload,
                 auth=self.auth,
-                timeout=settings.VIDEO_LIVE_PORTAL_TIMEOUT.total_seconds()
+                timeout=self.timeout
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -600,7 +607,7 @@ class LivePortal(models.Model):
                 self.control,
                 json=payload,
                 auth=self.auth,
-                timeout=settings.VIDEO_LIVE_PORTAL_TIMEOUT.total_seconds()
+                timeout=self.timeout
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -668,7 +675,7 @@ class LiveEvent(models.Model):
 
     @property
     def script(self):
-        return render_to_string("video/live/event.script", {"event": self})
+        return get_template("video/live/event.script").template.source
 
     def start(self):
         self.begin = timezone.now()
@@ -688,7 +695,7 @@ class LiveEvent(models.Model):
                     required=c
                 )
             self.job.assign()
-            self.job.start()
+            self.job.start({"event": self})
         # Notify portal
         for portal in self.channel.portals.all():
             portal.start(self)
@@ -704,7 +711,7 @@ class LiveEvent(models.Model):
         self.save()
         LiveEventTasks.cleanup.delay(self.pk)
 
-    def url(self, request):
+    def viewer(self, request):
         path = reverse("video:live-viewer", kwargs={"event_id": self.pk})
         if request:
             return request.build_absolute_uri(path)
@@ -716,12 +723,15 @@ class LiveEvent(models.Model):
 
     def previews(self):
         data = dict()
-        for s in self.stream_set.all():
+        for s in self.livestream_set.all():
             data[s.type] = list()
             for d in self.delivery.all():
                 url = URL(d.base).add_path_segment(self.pk).add_path_segment(f"{s.pk}.jpg")
                 data.get(s.type).append(url.as_string())
         return data
+
+    def __str__(self):
+        return f"{self.pk}: {self.title}"
 
 
 class LiveStreamVariant(models.Model):
@@ -759,12 +769,16 @@ class LiveViewer(models.Model):
     delivery = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
 
     def pre_save(self, *args, **kwargs):
-        if not self.delivery:
+        if not hasattr(self, "delivery"):
             self.delivery = LiveDeliveryServer.objects.filter(online=True).order_by("?").first()
 
     def post_save(self, *args, **kwargs):
         if not self.event.end:
-            self.delivery.redis.setex(f"HLS/{self.pk}", self.event.pk, settings.VIDEO_LIVE_VIEWER_LIFETIME.total_seconds())
+            self.delivery.redis.setex(
+                f"HLS/{self.pk}",
+                settings.VIDEO_LIVE_VIEWER_LIFETIME,
+                self.event.pk
+            )
 
     def disable(self):
         self.delivery.redis.delete(f"HLS/{self.pk}")
@@ -888,16 +902,19 @@ class LiveTemplateScene(models.Model):
                 "course": CourseSerializer(course).data if course else None,
             }
         context = Context({"scene": self, "campusonline": campusonline})
-        event = models.LiveEvent.objects.create(
+        event = LiveEvent.objects.create(
             channel=self.template.channel,
             public=public,
             title=Template(self.template.title).render(context),
             description=Template(self.template.description).render(context)
         )
-        for ts in self.livetemplatestreams.all():
-            stream = models.LiveStream.objects.create(
+        for ts in self.livetemplatestream_set.all():
+            stream = LiveStream.objects.create(
+                type=ts.type,
                 event=event,
                 source=ts.source.rtsp,
+                list_size=ts.list_size,
+                delete_threshold=ts.delete_threshold
             )
             for tv in ts.variants.all():
                 stream.variants.add(tv)
