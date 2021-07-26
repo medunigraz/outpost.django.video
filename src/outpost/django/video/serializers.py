@@ -92,6 +92,7 @@ class LiveChannelSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
+            "portals",
         )
 
 
