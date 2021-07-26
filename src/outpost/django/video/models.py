@@ -45,7 +45,6 @@ from outpost.django.base.decorators import signal_connect
 from outpost.django.base.models import NetworkedDeviceMixin
 from outpost.django.base.utils import Process, Uuid4Upload
 from outpost.django.base.validators import RedisURLValidator, UnitValidator
-from outpost.django.geo.models import Room
 from outpost.django.campusonline.models import Course, CourseGroupTerm, Person
 from PIL import Image
 from polymorphic.models import PolymorphicModel
@@ -854,7 +853,14 @@ class LiveViewerStatistic(models.Model):
 
 class LiveTemplate(models.Model):
     name = models.CharField(max_length=128)
-    room = models.ForeignKey(Room, on_delete=models.DO_NOTHING)
+    room = models.ForeignKey(
+        "campusonline.Room",
+        on_delete=models.SET_NULL,
+        db_constraint=False,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
     title = models.CharField(max_length=512)
     description = MarkupField(default_markup_type='markdown')
