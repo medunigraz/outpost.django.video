@@ -249,7 +249,7 @@ class EpiphanSource(models.Model):
     input = models.ForeignKey("Input", blank=True, null=True, on_delete=models.SET_NULL)
 
     class Meta:
-        ordering = ("number",)
+        ordering = ("epiphan__room__campusonline__name_short", "number",)
 
     @property
     def rtsp(self):
