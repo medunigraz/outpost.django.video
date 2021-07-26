@@ -122,8 +122,8 @@ class LivePortalAdmin(admin.ModelAdmin):
 @admin.register(models.LiveChannel)
 class LiveChannelAdmin(admin.ModelAdmin):
     list_display = (
-        "pk",
         "name",
+        "pk",
         "enabled",
     )
     list_filter = ("enabled",)
