@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from guardian.shortcuts import get_objects_for_user
 from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView, RetrieveAPIView
-from rest_framework.permissions import DjangoModelPermissions
+from rest_framework.permissions import DjangoModelPermissions, DjangoModelPermissionsOrAnonReadOnly
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
@@ -143,7 +143,7 @@ class EpiphanSourceViewSet(ModelViewSet):
 class LiveChannelViewSet(ReadOnlyModelViewSet):
     queryset = LiveChannel.objects.filter(enabled=True)
     serializer_class = LiveChannelSerializer
-    permission_classes = (DjangoModelPermissions,)
+    permission_classes = (DjangoModelPermissionsOrAnonReadOnly,)
     #filter_fields = ("epiphan",)
 
 
