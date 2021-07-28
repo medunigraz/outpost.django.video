@@ -877,37 +877,37 @@ class LiveTemplateScene(models.Model):
         return f"{self.template}: {self.name}"
 
     def instantiate(self, public=True):
-        from outpost.django.campusonline.serializers import PersonSerializer, CourseSerializer
-        cgt = (
-            CourseGroupTerm.objects.filter(
-                room=self.template.room.campusonline,
-                start__lte=timezone.now() + timedelta(minutes=30),
-                end__gte=timezone.now(),
+        context = Context({"scene": self, "campusonline": dict()})
+        if self.template.room:
+            from outpost.django.campusonline.serializers import PersonSerializer, CourseSerializer
+            cgt = (
+                CourseGroupTerm.objects.filter(
+                    room=self.template.room,
+                    start__lte=timezone.now() + timedelta(minutes=30),
+                    end__gte=timezone.now(),
+                )
+                .values("start", "end", "person", "title", "coursegroup__course")
+                .distinct()
+                .first()
             )
-            .values("start", "end", "person", "title", "coursegroup__course")
-            .distinct()
-            .first()
-        )
-        if not cgt:
-            logger.warn("No Course Group Term found")
-            campusonline = dict()
-        else:
-            try:
-                course = Course.objects.get(pk=cgt.get("coursegroup__course"))
-            except Course.DoesNotExists as e:
-                logger.warn(f"No Course found: {e}")
-                course = None
-            try:
-                presenter = Person.objects.get(pk=cgt.get("person"))
-            except Person.DoesNotExist as e:
-                logger.warn(f"No Person found: {e}")
-                presenter = None
-            campusonline = {
-                "title": cgt.get("title", ""),
-                "presenter": PersonSerializer(presenter).data if presenter else None,
-                "course": CourseSerializer(course).data if course else None,
-            }
-        context = Context({"scene": self, "campusonline": campusonline})
+            if not cgt:
+                logger.warn("No Course Group Term found")
+            else:
+                try:
+                    course = Course.objects.get(pk=cgt.get("coursegroup__course"))
+                except Course.DoesNotExists as e:
+                    logger.warn(f"No Course found: {e}")
+                    course = None
+                try:
+                    presenter = Person.objects.get(pk=cgt.get("person"))
+                except Person.DoesNotExist as e:
+                    logger.warn(f"No Person found: {e}")
+                    presenter = None
+                context["campusonline"].update({
+                    "title": cgt.get("title", ""),
+                    "presenter": PersonSerializer(presenter).data if presenter else None,
+                    "course": CourseSerializer(course).data if course else None,
+                })
         event = LiveEvent.objects.create(
             channel=self.template.channel,
             public=public,
