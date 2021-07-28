@@ -8,22 +8,22 @@ from django.contrib.auth.decorators import permission_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.template import Context, Template
 
-from braces.views import JSONResponseMixin
+from braces.views import JSONResponseMixin, CsrfExemptMixin
 from outpost.django.base.mixins import HttpBasicAuthMixin
 
 from . import models
 
 logger = logging.getLogger(__name__)
 
-class LiveRoom(HttpBasicAuthMixin, LoginRequiredMixin, View):
+class LiveRoom(CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, View):
 
-    def get(self, template_id):
+    def get(self, request, template_id, **kwargs):
         room = get_object_or_404(models.LiveTemplate, pk=template_id)
-        get_list_or_404(room.channel.liveevent_set, end__is_null=True)
+        get_list_or_404(room.channel.liveevent_set, end__isnull=True)
         return HttpResponse()
 
     @method_decorator(permission_required('video.add_liveevent', raise_exception=True))
-    def post(self, template_id, scene_id, public):
+    def post(self, request, template_id, scene_id, public):
         template = get_object_or_404(models.LiveTemplate, pk=template_id)
         scene = get_object_or_404(models.LiveTemplateScene, pk=scene_id, template=template)
         event = scene.instantiate(public)
@@ -31,17 +31,17 @@ class LiveRoom(HttpBasicAuthMixin, LoginRequiredMixin, View):
         return HttpResponse()
 
     @method_decorator(permission_required('video.delete_liveevent', raise_exception=True))
-    def delete(self, template_id):
+    def delete(self, request, template_id, **kwargs):
         template = get_object_or_404(models.LiveTemplate, pk=template_id)
-        for event in get_list_or_404(template.channel.liveevent_set.all(), end__is_null=True):
+        for event in get_list_or_404(template.channel.liveevent_set.all(), end__isnull=True):
             event.stop()
         return HttpResponse()
 
 
-class LiveViewer(HttpBasicAuthMixin, LoginRequiredMixin, JSONResponseMixin, View):
+class LiveViewer(CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, JSONResponseMixin, View):
 
     @method_decorator(permission_required('video.add_liveviewer', raise_exception=True))
-    def post(self, event_id):
+    def post(self, request, event_id):
         event = get_object_or_404(models.LiveEvent, pk=event_id)
         viewer = models.LiveViewer.objects.create(
             event=event
@@ -53,4 +53,3 @@ class LiveViewer(HttpBasicAuthMixin, LoginRequiredMixin, JSONResponseMixin, View
 
         }
         return self.render_json_response(data)
-
