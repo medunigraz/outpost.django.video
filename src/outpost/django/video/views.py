@@ -9,12 +9,13 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.template import Context, Template
 
 from braces.views import JSONResponseMixin
+from outpost.django.base.mixins import HttpBasicAuthMixin
 
 from . import models
 
 logger = logging.getLogger(__name__)
 
-class LiveRoom(LoginRequiredMixin, View):
+class LiveRoom(HttpBasicAuthMixin, LoginRequiredMixin, View):
 
     def get(self, template_id):
         room = get_object_or_404(models.LiveTemplate, pk=template_id)
@@ -37,7 +38,7 @@ class LiveRoom(LoginRequiredMixin, View):
         return HttpResponse()
 
 
-class LiveViewer(LoginRequiredMixin, JSONResponseMixin, View):
+class LiveViewer(HttpBasicAuthMixin, LoginRequiredMixin, JSONResponseMixin, View):
 
     @method_decorator(permission_required('video.add_liveviewer', raise_exception=True))
     def post(self, event_id):
