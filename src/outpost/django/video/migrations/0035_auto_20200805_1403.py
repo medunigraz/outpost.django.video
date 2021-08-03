@@ -8,19 +8,27 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('video', '0034_recorder_auphonic'),
-    ]
+    dependencies = [("video", "0034_recorder_auphonic")]
 
     operations = [
         migrations.AlterField(
-            model_name='epiphanrecording',
-            name='channel',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='video.EpiphanChannel'),
+            model_name="epiphanrecording",
+            name="channel",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="video.EpiphanChannel",
+            ),
         ),
         migrations.AlterField(
-            model_name='epiphansource',
-            name='input',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='video.Input'),
+            model_name="epiphansource",
+            name="input",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="video.Input",
+            ),
         ),
     ]

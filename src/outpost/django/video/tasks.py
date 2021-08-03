@@ -1,6 +1,6 @@
 import io
-import mimetypes
 import logging
+import mimetypes
 import os.path
 import re
 import socket
@@ -36,8 +36,8 @@ from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .conf import settings
 from .utils import (
-    FFProbeProcess,
     FFMPEGSilenceHandler,
+    FFProbeProcess,
     TranscribeException,
     TranscribeMixin,
 )
@@ -83,7 +83,6 @@ ureg = UnitRegistry()
 
 
 class RecordingTasks:
-
     @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Recording:process")
     def process(task, pk):
         logger.debug(f"Processing recording: {pk}")
@@ -310,7 +309,11 @@ class EpiphanTasks:
             },
         )
 
-    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Epiphan:fetch_firmware_version")
+    @shared_task(
+        bind=True,
+        ignore_result=False,
+        name=f"{__name__}.Epiphan:fetch_firmware_version",
+    )
     def fetch_firmware_version(task, pk):
         epiphan = Epiphan.objects.get(pk=pk)
         response = epiphan.session.get(
@@ -336,13 +339,17 @@ class EpiphanTasks:
             EpiphanTasks.preview_video.delay(s.pk)
             EpiphanTasks.preview_audio.delay(s.pk)
 
-    @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_video")
+    @shared_task(
+        bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_video"
+    )
     def preview_video(task, pk):
         source = EpiphanSource.objects.get(pk=pk)
         logger.info(f"Epiphan source video preview: {source}")
         source.generate_video_preview()
 
-    @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_audio")
+    @shared_task(
+        bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_audio"
+    )
     def preview_audio(task, pk):
         source = EpiphanSource.objects.get(pk=pk)
         logger.info(f"Epiphan source audio waveform: {source}")
@@ -358,7 +365,6 @@ class EpiphanTasks:
 
 
 class ExportTasks:
-
     @shared_task(bind=True, ignore_result=False, name=f"{__name__}.Export:create")
     def create(task, pk, exporter, base_uri):
         def progress(action, current, maximum):
@@ -399,7 +405,6 @@ class ExportTasks:
 
 
 class TranscribeTask(TranscribeMixin):
-
     def run(self, pk, **kwargs):
         from .models import TranscribeLanguage, Event
 
@@ -469,7 +474,7 @@ class AuphonicTasks:
         ignore_result=False,
         default_retry_delay=120,
         max_retries=120,
-        name=f"{__name__}.Auphonic:process"
+        name=f"{__name__}.Auphonic:process",
     )
     def process(task, pk):
         logger.info(f"Starting Auphonic processing: {pk}")
@@ -544,7 +549,7 @@ class AuphonicTasks:
         ignore_result=True,
         default_retry_delay=120,
         max_retries=120,
-        name=f"{__name__}.Auphonic:retreive"
+        name=f"{__name__}.Auphonic:retreive",
     )
     def retrieve(task, job, pk):
         logger.info(f"Fetching Auphonic result for {pk} from {job}")
@@ -634,7 +639,6 @@ class AuphonicTasks:
 
 
 class LiveEventTasks:
-
     @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:cleanup")
     def cleanup(task, pk):
         logger.debug(f"Cleaning up live event: {pk}")
@@ -652,8 +656,9 @@ class LiveEventTasks:
 
 
 class LiveDeliveryServerTasks:
-
-    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveDeliveryServer:check")
+    @shared_task(
+        bind=True, ignore_result=False, name=f"{__name__}.LiveDeliveryServer:check"
+    )
     def check(task):
         for d in LiveDeliveryServer.objects.all():
             if not d.is_alive():

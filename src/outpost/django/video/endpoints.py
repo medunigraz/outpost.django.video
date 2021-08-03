@@ -10,5 +10,9 @@ v1 = [
     (r"video/recordingasset", api.RecordingAssetViewSet, "video-recordingasset"),
     (r"video/livechannel", api.LiveChannelViewSet, "video-livechannel"),
     (r"video/livetemplate", api.LiveTemplateViewSet, "video-livetemplate"),
-    (r"video/livetemplatescene", api.LiveTemplateSceneViewSet, "video-livetemplatescene"),
+    (
+        r"video/livetemplatescene",
+        api.LiveTemplateSceneViewSet,
+        "video-livetemplatescene",
+    ),
 ]

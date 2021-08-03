@@ -2,20 +2,19 @@ import io
 import logging
 import os
 import re
-import certifi
 import subprocess
-import django
 from base64 import b64encode
 from collections import Counter
 from datetime import timedelta
-from functools import partial, reduce, lru_cache
+from functools import lru_cache, partial, reduce
 from hashlib import sha256
 from math import ceil
-from redis import Redis
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from zipfile import ZipFile
 
 import asyncssh
+import certifi
+import django
 import requests
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.fields import GenericRelation
@@ -27,17 +26,17 @@ from django.core.files import File
 from django.core.files.storage import FileSystemStorage
 from django.core.validators import RegexValidator
 from django.db import models
+from django.template import Context, Template
+from django.template.loader import get_template
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
-from django.template import Context, Template
-from django.template.loader import get_template
-from django_extensions.db.models import TimeStampedModel
 from django_extensions.db.fields import ShortUUIDField
-from django_sshworker.models import Job
-from markupfield.fields import MarkupField
+from django_extensions.db.models import TimeStampedModel
+from django_sshworker.models import Job, JobConstraint, Resource
 from imagekit.models import ProcessedImageField
 from imagekit.processors import ResizeToFill
+from markupfield.fields import MarkupField
 from memoize import delete_memoized, memoize
 from more_itertools import chunked, divide, split_after
 from ordered_model.models import OrderedModel
@@ -49,8 +48,8 @@ from outpost.django.campusonline.models import Course, CourseGroupTerm, Person
 from PIL import Image
 from polymorphic.models import PolymorphicModel
 from purl import URL
+from redis import Redis
 from webvtt import Caption, WebVTT
-from django_sshworker.models import Job, Resource, JobConstraint
 
 from .conf import settings
 from .utils import FFMPEGProgressHandler
@@ -249,7 +248,7 @@ class EpiphanSource(models.Model):
     input = models.ForeignKey("Input", blank=True, null=True, on_delete=models.SET_NULL)
 
     class Meta:
-        ordering = ("epiphan__room__campusonline__name_short", "number",)
+        ordering = ("epiphan__room__campusonline__name_short", "number")
 
     @property
     def rtsp(self):
@@ -572,10 +571,7 @@ class LivePortal(models.Model):
     @property
     def auth(self):
         if self.username and self.password:
-            return requests.auth.HTTPBasicAuth(
-                self.username,
-                self.password
-            )
+            return requests.auth.HTTPBasicAuth(self.username, self.password)
 
     def start(self, event, request=None):
         payload = {
@@ -584,29 +580,21 @@ class LivePortal(models.Model):
             "title": event.title,
             "description": event.description.rendered,
             "unrestricted": event.public,
-            "previews": event.previews()
+            "previews": event.previews(),
         }
         try:
             resp = requests.put(
-                self.control,
-                json=payload,
-                auth=self.auth,
-                timeout=self.timeout
+                self.control, json=payload, auth=self.auth, timeout=self.timeout
             )
             resp.raise_for_status()
         except requests.RequestException as e:
             logger.error(f"Failed to notify {self} of event {event} start: {e}")
 
     def stop(self, event):
-        payload = {
-            "id": event.pk,
-        }
+        payload = {"id": event.pk}
         try:
             resp = requests.delete(
-                self.control,
-                json=payload,
-                auth=self.auth,
-                timeout=self.timeout
+                self.control, json=payload, auth=self.auth, timeout=self.timeout
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -626,12 +614,7 @@ class LiveChannel(models.Model):
 @signal_connect
 class LiveDeliveryServer(models.Model):
     base = models.URLField()
-    config = models.CharField(
-        max_length=256,
-        validators=[
-            RedisURLValidator()
-        ],
-    )
+    config = models.CharField(max_length=256, validators=[RedisURLValidator()])
     online = models.BooleanField(default=False, editable=False)
     timeout = models.PositiveSmallIntegerField(default=5)
 
@@ -655,9 +638,17 @@ class LiveDeliveryServer(models.Model):
         if url.scheme() == "unix":
             return Redis(unix_socket_path=url.path())
         if url.scheme() == "redis":
-            return Redis(host=url.host(), port=url.port(), db=int(url.query_param('db') or 0))
+            return Redis(
+                host=url.host(), port=url.port(), db=int(url.query_param("db") or 0)
+            )
         if url.scheme() == "redis+tls":
-            return Redis(host=url.host(), port=url.port(), db=int(url.query_param('db') or 0), ssl=True, ssl_ca_certs=certifi.where())
+            return Redis(
+                host=url.host(),
+                port=url.port(),
+                db=int(url.query_param("db") or 0),
+                ssl=True,
+                ssl_ca_certs=certifi.where(),
+            )
         raise Exception(f"{self.config} is not a valid Redis URL")
 
 
@@ -668,7 +659,7 @@ class LiveEvent(models.Model):
     begin = models.DateTimeField(null=True, editable=False)
     end = models.DateTimeField(null=True, editable=False)
     title = models.CharField(max_length=512)
-    description = MarkupField(default_markup_type='markdown')
+    description = MarkupField(default_markup_type="markdown")
     delivery = models.ManyToManyField(LiveDeliveryServer)
     job = models.ForeignKey(Job, on_delete=models.CASCADE, null=True, editable=False)
 
@@ -679,20 +670,17 @@ class LiveEvent(models.Model):
     def start(self):
         self.begin = timezone.now()
         if not self.job:
-            self.job = Job.objects.create(
-                script=self.script
-            )
+            self.job = Job.objects.create(script=self.script)
             requirements = self.livestream_set.values_list(
                 "variants__livestreamvariantrequirement__resource",
-                "variants__livestreamvariantrequirement__slots"
+                "variants__livestreamvariantrequirement__slots",
             )
-            required = sum([Counter({Resource.objects.get(pk=r): s}) for r, s in requirements], Counter())
+            required = sum(
+                [Counter({Resource.objects.get(pk=r): s}) for r, s in requirements],
+                Counter(),
+            )
             for r, c in required.items():
-                JobConstraint.objects.create(
-                    job=self.job,
-                    resource=r,
-                    required=c
-                )
+                JobConstraint.objects.create(job=self.job, resource=r, required=c)
             self.job.assign()
             self.job.start({"event": self})
         # Notify portal
@@ -702,6 +690,7 @@ class LiveEvent(models.Model):
 
     def stop(self):
         from .tasks import LiveEventTasks
+
         self.end = timezone.now()
         if self.job:
             self.job.stop()
@@ -715,9 +704,7 @@ class LiveEvent(models.Model):
         if request:
             return request.build_absolute_uri(path)
         return URL(
-            scheme="https",
-            host=Site.objects.get_current().domain,
-            path=path
+            scheme="https", host=Site.objects.get_current().domain, path=path
         ).as_string()
 
     def previews(self):
@@ -725,7 +712,11 @@ class LiveEvent(models.Model):
         for s in self.livestream_set.all():
             data[s.type] = list()
             for d in self.delivery.all():
-                url = URL(d.base).add_path_segment(self.pk).add_path_segment(f"{s.pk}.jpg")
+                url = (
+                    URL(d.base)
+                    .add_path_segment(self.pk)
+                    .add_path_segment(f"{s.pk}.jpg")
+                )
                 data.get(s.type).append(url.as_string())
         return data
 
@@ -739,15 +730,15 @@ class LiveStreamVariant(models.Model):
     profile = models.CharField(max_length=32)
     video = models.CharField(
         max_length=16,
-        #validators=[
+        # validators=[
         #    UnitValidator("byte")
-        #],
+        # ],
     )
     audio = models.CharField(
         max_length=16,
-        #validators=[
+        # validators=[
         #    UnitValidator("byte")
-        #],
+        # ],
     )
 
     def __str__(self):
@@ -769,14 +760,14 @@ class LiveViewer(models.Model):
 
     def pre_save(self, *args, **kwargs):
         if not hasattr(self, "delivery"):
-            self.delivery = LiveDeliveryServer.objects.filter(online=True).order_by("?").first()
+            self.delivery = (
+                LiveDeliveryServer.objects.filter(online=True).order_by("?").first()
+            )
 
     def post_save(self, *args, **kwargs):
         if not self.event.end:
             self.delivery.redis.setex(
-                f"HLS/{self.pk}",
-                settings.VIDEO_LIVE_VIEWER_LIFETIME,
-                self.event.pk
+                f"HLS/{self.pk}", settings.VIDEO_LIVE_VIEWER_LIFETIME, self.event.pk
             )
 
     def disable(self):
@@ -785,7 +776,12 @@ class LiveViewer(models.Model):
     def stats(self):
         for stream in self.event.streams.all():
             segments = self.delivery.redis.hgetall(f"HLS/{self.pk}/{stream.pk}")
-            entries = [LiveViewerStatistic(stream=stream, datetime=t, s=self.event.streams.get(pk=s)) for t, s in segments.items()]
+            entries = [
+                LiveViewerStatistic(
+                    stream=stream, datetime=t, s=self.event.streams.get(pk=s)
+                )
+                for t, s in segments.items()
+            ]
             LiveViewerStatistic.objects.bulk_create(entries)
 
     def cleanup(self):
@@ -812,12 +808,8 @@ class LiveStream(models.Model):
     def viewer(self, viewer: LiveViewer):
         url = reduce(
             lambda u, s: u.add_path_segment(s),
-            (
-                viewer.event.pk,
-                viewer.pk,
-                f"{self.pk}.m3u8"
-            ),
-            URL(viewer.delivery.base)
+            (viewer.event.pk, viewer.pk, f"{self.pk}.m3u8"),
+            URL(viewer.delivery.base),
         )
         return url.as_string()
 
@@ -828,7 +820,10 @@ class LiveStream(models.Model):
             for t, c in timestamps.items():
                 accumulator[t] = accumulator.get(t, 0) + int(c)
         LiveStreamStatistic.objects.bulk_create(
-            [LiveStreamStatistic(stream=self, datetime=t, viewers=c) for t, c in accumulator.items()]
+            [
+                LiveStreamStatistic(stream=self, datetime=t, viewers=c)
+                for t, c in accumulator.items()
+            ]
         )
 
     def cleanup(self):
@@ -863,7 +858,7 @@ class LiveTemplate(models.Model):
     )
     channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
     title = models.CharField(max_length=512)
-    description = MarkupField(default_markup_type='markdown')
+    description = MarkupField(default_markup_type="markdown")
 
     def __str__(self):
         return f"{self.name} ({self.room})"
@@ -879,7 +874,11 @@ class LiveTemplateScene(models.Model):
     def instantiate(self, public=True):
         context = Context({"scene": self, "campusonline": dict()})
         if self.template.room:
-            from outpost.django.campusonline.serializers import PersonSerializer, CourseSerializer
+            from outpost.django.campusonline.serializers import (
+                PersonSerializer,
+                CourseSerializer,
+            )
+
             cgt = (
                 CourseGroupTerm.objects.filter(
                     room=self.template.room,
@@ -903,16 +902,20 @@ class LiveTemplateScene(models.Model):
                 except Person.DoesNotExist as e:
                     logger.warn(f"No Person found: {e}")
                     presenter = None
-                context["campusonline"].update({
-                    "title": cgt.get("title", ""),
-                    "presenter": PersonSerializer(presenter).data if presenter else None,
-                    "course": CourseSerializer(course).data if course else None,
-                })
+                context["campusonline"].update(
+                    {
+                        "title": cgt.get("title", ""),
+                        "presenter": PersonSerializer(presenter).data
+                        if presenter
+                        else None,
+                        "course": CourseSerializer(course).data if course else None,
+                    }
+                )
         event = LiveEvent.objects.create(
             channel=self.template.channel,
             public=public,
             title=Template(self.template.title).render(context),
-            description=Template(self.template.description).render(context)
+            description=Template(self.template.description).render(context),
         )
         for ts in self.livetemplatestream_set.all():
             stream = LiveStream.objects.create(
@@ -920,7 +923,7 @@ class LiveTemplateScene(models.Model):
                 event=event,
                 source=ts.source.rtsp,
                 list_size=ts.list_size,
-                delete_threshold=ts.delete_threshold
+                delete_threshold=ts.delete_threshold,
             )
             for tv in ts.variants.all():
                 stream.variants.add(tv)
@@ -934,9 +937,6 @@ class LiveTemplateStream(models.Model):
     variants = models.ManyToManyField(LiveStreamVariant)
     list_size = models.PositiveIntegerField()
     delete_threshold = models.PositiveIntegerField()
-
-
-
 
 
 # class Transcription(models.Model):

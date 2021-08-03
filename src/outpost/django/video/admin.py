@@ -121,20 +121,13 @@ class LivePortalAdmin(admin.ModelAdmin):
 
 @admin.register(models.LiveChannel)
 class LiveChannelAdmin(admin.ModelAdmin):
-    list_display = (
-        "name",
-        "pk",
-        "enabled",
-    )
+    list_display = ("name", "pk", "enabled")
     list_filter = ("enabled",)
 
 
 @admin.register(models.LiveDeliveryServer)
 class LiveDeliveryServerAdmin(admin.ModelAdmin):
-    list_display = (
-        "base",
-        "online",
-    )
+    list_display = ("base", "online")
     list_filter = ("online",)
 
 
@@ -144,16 +137,8 @@ class LiveStreamVariantRequirementInline(admin.TabularInline):
 
 @admin.register(models.LiveStreamVariant)
 class LiveStreamVariantAdmin(admin.ModelAdmin):
-    list_display = (
-        "height",
-        "preset",
-        "profile",
-        "video",
-        "audio",
-    )
-    inlines = (
-        LiveStreamVariantRequirementInline,
-    )
+    list_display = ("height", "preset", "profile", "video", "audio")
+    inlines = (LiveStreamVariantRequirementInline,)
 
 
 @admin.register(models.LiveTemplate)
@@ -169,9 +154,7 @@ class LiveTemplateStreamInline(admin.TabularInline):
 class LiveTemplateSceneAdmin(admin.ModelAdmin):
     list_filter = ("template",)
     search_fields = ("name",)
-    inlines = (
-        LiveTemplateStreamInline,
-    )
+    inlines = (LiveTemplateStreamInline,)
 
 
 class LiveStreamInline(admin.TabularInline):
@@ -184,29 +167,20 @@ class LiveViewerInline(admin.TabularInline):
 
 @admin.register(models.LiveEvent)
 class LiveEventAdmin(admin.ModelAdmin):
-    list_display = (
-        "pk",
-        "channel",
-        "title",
-        "begin",
-        "end",
-        "public",
-    )
+    list_display = ("pk", "channel", "title", "begin", "end", "public")
     list_filter = ("channel", "public", "begin", "end")
     search_fields = ("title", "description")
-    inlines = (
-        LiveStreamInline,
-        LiveViewerInline
-    )
+    inlines = (LiveStreamInline, LiveViewerInline)
     actions = ("start", "stop")
 
     def start(self, request, queryset):
         for e in queryset.all():
             e.start()
-    start.short_description = _('Start selected live events')
+
+    start.short_description = _("Start selected live events")
 
     def stop(self, request, queryset):
         for e in queryset.all():
             e.stop()
-    stop.short_description = _('Stop selected live events')
 
+    stop.short_description = _("Stop selected live events")

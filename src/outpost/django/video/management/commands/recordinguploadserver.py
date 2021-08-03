@@ -14,10 +14,7 @@ from django.utils import timezone
 
 from ...conf import settings
 from ...models import Epiphan, EpiphanChannel, EpiphanRecording, Server
-from ...tasks import (
-    AuphonicTasks,
-    RecordingTasks,
-)
+from ...tasks import AuphonicTasks, RecordingTasks
 
 logger = logging.getLogger(__name__)
 

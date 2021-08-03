@@ -1,15 +1,17 @@
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from guardian.shortcuts import get_objects_for_user
+from outpost.django.base.decorators import docstring_format
+from rest_flex_fields.views import FlexFieldsMixin
 from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView, RetrieveAPIView
-from rest_framework.permissions import DjangoModelPermissions, DjangoModelPermissionsOrAnonReadOnly
+from rest_framework.permissions import (
+    DjangoModelPermissions,
+    DjangoModelPermissionsOrAnonReadOnly,
+)
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
-from rest_flex_fields.views import FlexFieldsMixin
-
-from outpost.django.base.decorators import docstring_format
 
 from .permissions import EpiphanChannelPermissions
 from .serializers import (
@@ -17,12 +19,12 @@ from .serializers import (
     EpiphanSerializer,
     EpiphanSourceSerializer,
     ExportClassSerializer,
+    LiveChannelSerializer,
+    LiveTemplateSceneSerializer,
+    LiveTemplateSerializer,
     RecorderSerializer,
     RecordingAssetSerializer,
     RecordingSerializer,
-    LiveChannelSerializer,
-    LiveTemplateSerializer,
-    LiveTemplateSceneSerializer,
 )
 from .tasks import ExportTasks
 
@@ -68,7 +70,9 @@ class ExportClassViewSet(ListAPIView, RetrieveAPIView, GenericViewSet):
     def post(self, request, *args, **kwargs):
         exporter = request.data.get("exporter")
         recording = request.data.get("recording")
-        task = ExportTasks.create.delay(recording, exporter, request.build_absolute_uri("/"))
+        task = ExportTasks.create.delay(
+            recording, exporter, request.build_absolute_uri("/")
+        )
         result = {"task": task.id}
         return Response(result)
 
@@ -137,25 +141,21 @@ class EpiphanSourceViewSet(ModelViewSet):
     filter_fields = ("epiphan",)
 
 
-@docstring_format(
-    model=LiveChannel.__doc__, serializer=LiveChannelSerializer.__doc__
-)
+@docstring_format(model=LiveChannel.__doc__, serializer=LiveChannelSerializer.__doc__)
 class LiveChannelViewSet(ReadOnlyModelViewSet):
     queryset = LiveChannel.objects.filter(enabled=True)
     serializer_class = LiveChannelSerializer
     permission_classes = (DjangoModelPermissionsOrAnonReadOnly,)
-    #filter_fields = ("epiphan",)
+    # filter_fields = ("epiphan",)
 
 
-@docstring_format(
-    model=LiveTemplate.__doc__, serializer=LiveTemplateSerializer.__doc__
-)
+@docstring_format(model=LiveTemplate.__doc__, serializer=LiveTemplateSerializer.__doc__)
 class LiveTemplateViewSet(FlexFieldsMixin, ReadOnlyModelViewSet):
     queryset = LiveTemplate.objects.all()
     serializer_class = LiveTemplateSerializer
     permission_classes = (DjangoModelPermissions,)
     permit_list_expands = ("livetemplatescene_set",)
-    #filter_fields = ("epiphan",)
+    # filter_fields = ("epiphan",)
 
 
 @docstring_format(
@@ -165,4 +165,4 @@ class LiveTemplateSceneViewSet(ReadOnlyModelViewSet):
     queryset = LiveTemplateScene.objects.all()
     serializer_class = LiveTemplateSceneSerializer
     permission_classes = (DjangoModelPermissions,)
-    #filter_fields = ("epiphan",)
+    # filter_fields = ("epiphan",)
