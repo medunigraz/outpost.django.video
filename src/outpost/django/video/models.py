@@ -859,6 +859,7 @@ class LiveTemplate(models.Model):
     channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
     title = models.CharField(max_length=512)
     description = MarkupField(default_markup_type="markdown")
+    delivery = models.ManyToManyField(LiveDeliveryServer)
 
     def __str__(self):
         return f"{self.name} ({self.room})"
