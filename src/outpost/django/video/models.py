@@ -918,6 +918,8 @@ class LiveTemplateScene(models.Model):
             title=Template(self.template.title).render(context),
             description=Template(self.template.description).render(context),
         )
+        for d in self.template.delivery.all():
+            event.delivery.add(d)
         for ts in self.livetemplatestream_set.all():
             stream = LiveStream.objects.create(
                 type=ts.type,
