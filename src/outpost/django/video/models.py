@@ -591,7 +591,7 @@ class LivePortal(models.Model):
             logger.error(f"Failed to notify {self} of event {event} start: {e}")
 
     def stop(self, event):
-        payload = {"id": event.pk}
+        payload = {"id": event.channel.pk}
         try:
             resp = requests.delete(
                 self.control, json=payload, auth=self.auth, timeout=self.timeout
