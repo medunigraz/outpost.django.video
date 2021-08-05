@@ -53,6 +53,6 @@ class LiveViewer(
         logger.info(f"Created new viewer {viewer}")
         data = {
             "viewer": viewer.pk,
-            "streams": {s.type: s.viewer(viewer) for s in event.streams},
+            "streams": {s.type: s.viewer(viewer) for s in event.livestream_set.all()},
         }
         return self.render_json_response(data)
