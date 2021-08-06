@@ -123,7 +123,7 @@ async def transcode(stream):
             "-b:v:0", vdata.get("video"),
             "-maxrate:v:0", vdata.get("video"),
             "-minrate:v:0", vdata.get("video"),
-            "-bufsize:v:0", "10M",
+            "-bufsize:v:0", vdata.get("video"),
             "-preset", vdata.get("preset"),
             "-profile:v", vdata.get("profile"),
             "-g", "60",
