@@ -681,8 +681,14 @@ class LiveEvent(models.Model):
             )
             for r, c in required.items():
                 JobConstraint.objects.create(job=self.job, resource=r, required=c)
-            self.job.assign()
-            self.job.start({"event": self})
+            if not self.job.assign():
+                return False
+        for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(pk=self.pk):
+            logger.warning(f"Stopping active LiveEvent {le} ahead of starting {self}")
+            le.stop()
+        if not self.job.running:
+            if not self.job.start({"event": self}):
+                return False
         # Notify portal
         for portal in self.channel.portals.all():
             portal.start(self)

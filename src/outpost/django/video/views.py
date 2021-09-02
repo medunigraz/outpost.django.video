@@ -7,6 +7,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_list_or_404, get_object_or_404
 from django.template import Context, Template
 from django.utils.decorators import method_decorator
+from django.utils.translation import ugettext_lazy as _
 from django.views.generic import View
 from outpost.django.base.mixins import HttpBasicAuthMixin
 
@@ -28,7 +29,8 @@ class LiveRoom(CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, View):
             models.LiveTemplateScene, pk=scene_id, template=template
         )
         event = scene.instantiate(public)
-        event.start()
+        if not event.start():
+            return HttpResponse(_("Maximum number of parallel transmissions reached - Live stream could not be started"), status=503)
         return HttpResponse()
 
     @method_decorator(
