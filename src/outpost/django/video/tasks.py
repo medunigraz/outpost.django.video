@@ -334,10 +334,12 @@ class EpiphanTasks:
             epiphan__enabled=True, epiphan__online=True
         )
         logger.info(f"Updating {sources.count()} sources.")
+        queue = task.request.delivery_info.get("routing_key")
 
         for s in sources:
-            EpiphanTasks.preview_video.delay(s.pk)
-            EpiphanTasks.preview_audio.delay(s.pk)
+            # TODO: Get queue from current task instead of hardcoding it.
+            EpiphanTasks.preview_video.apply_async((s.pk,), queue=queue)
+            EpiphanTasks.preview_audio.apply_async((s.pk,), queue=queue)
 
     @shared_task(
         bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_video"
