@@ -18,9 +18,13 @@ logger = logging.getLogger(__name__)
 
 class LiveRoom(CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, View):
     def get(self, request, template_id, **kwargs):
-        room = get_object_or_404(models.LiveTemplate, pk=template_id)
-        get_list_or_404(room.channel.liveevent_set, end__isnull=True)
-        return HttpResponse()
+        try:
+            room = models.LiveTemplate.objects.get(pk=template_id)
+        except models.LiveTemplate.DoesNotExist:
+            return HttpResponse("404 Page not found", status=404)
+        if not room.channel.liveevent_set.filter(end__isnull=True).exists():
+            return HttpResponse("404 Page not found", status=404)
+        return HttpResponse("200 Stream online")
 
     @method_decorator(permission_required("video.add_liveevent", raise_exception=True))
     def post(self, request, template_id, scene_id, public):
