@@ -11,6 +11,7 @@ from tempfile import NamedTemporaryFile
 from urllib.parse import urljoin
 
 import requests
+import streamlink
 from bs4 import BeautifulSoup
 from celery import shared_task, states
 from celery.exceptions import Ignore
@@ -50,6 +51,7 @@ from .models import (  # EventAudio,; EventVideo,
     Recording,
     LiveEvent,
     LiveDeliveryServer,
+    LiveViewer,
 )
 
 logger = logging.getLogger(__name__)
@@ -655,6 +657,26 @@ class LiveEventTasks:
         for le in LiveEvent.objects.filter(end=None).exclude(job=None):
             if not le.job.is_alive():
                 le.stop()
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:ready_to_publish")
+    def ready_to_publish(task, pk):
+        le = LiveEvent.objects.get(pk=pk)
+        for ds in le.delivery.all():
+            v = LiveViewer.objects.create(event=le, delivery=ds)
+            try:
+                for ls in le.livestream_set.all():
+                    url = ls.viewer(viewer=v)
+                    streamlink.streams(url)
+            except streamlink.StreamlinkError as e:
+                task.retry(exc=e, countdown=1, max_retries=300)
+            finally:
+                v.disable()
+                v.delete()
+        # Notify portal
+        for portal in le.channel.portals.all():
+            portal.start(le)
+        le.begin = timezone.now()
+        le.save()
 
 
 class LiveDeliveryServerTasks:

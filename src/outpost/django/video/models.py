@@ -25,7 +25,7 @@ from django.core.cache import cache
 from django.core.files import File
 from django.core.files.storage import FileSystemStorage
 from django.core.validators import RegexValidator
-from django.db import models
+from django.db import models, transaction
 from django.template import Context, Template
 from django.template.loader import get_template
 from django.urls import reverse
@@ -656,6 +656,7 @@ class LiveEvent(models.Model):
     id = ShortUUIDField(primary_key=True)
     channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
     public = models.BooleanField(default=False)
+    started = models.DateTimeField(null=True, editable=False)
     begin = models.DateTimeField(null=True, editable=False)
     end = models.DateTimeField(null=True, editable=False)
     title = models.CharField(max_length=512)
@@ -668,7 +669,8 @@ class LiveEvent(models.Model):
         return get_template("video/live/event.script").template.source
 
     def start(self):
-        self.begin = timezone.now()
+        from .tasks import LiveEventTasks
+        self.started = timezone.now()
         if not self.job:
             self.job = Job.objects.create(script=self.script)
             requirements = self.livestream_set.values_list(
@@ -689,10 +691,9 @@ class LiveEvent(models.Model):
         if not self.job.running:
             if not self.job.start({"event": self}):
                 return False
-        # Notify portal
-        for portal in self.channel.portals.all():
-            portal.start(self)
+
         self.save()
+        transaction.on_commit(lambda: LiveEventTasks.ready_to_publish.delay(self.pk))
 
     def stop(self):
         from .tasks import LiveEventTasks
@@ -703,7 +704,7 @@ class LiveEvent(models.Model):
         for portal in self.channel.portals.all():
             portal.stop(self)
         self.save()
-        LiveEventTasks.cleanup.delay(self.pk)
+        transaction.on_commit(lambda: LiveEventTasks.cleanup.delay(self.pk))
 
     def viewer(self, request):
         path = reverse("video:live-viewer", kwargs={"event_id": self.pk})
