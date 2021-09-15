@@ -661,6 +661,8 @@ class LiveEventTasks:
     @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:ready_to_publish")
     def ready_to_publish(task, pk):
         le = LiveEvent.objects.get(pk=pk)
+        if le.end:
+            return
         for ds in le.delivery.all():
             v = LiveViewer.objects.create(event=le, delivery=ds)
             try:
