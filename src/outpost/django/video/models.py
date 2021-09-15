@@ -864,7 +864,7 @@ class LiveTemplate(models.Model):
     )
     channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
     title = models.CharField(max_length=512)
-    description = MarkupField(default_markup_type="markdown")
+    description = models.TextField()
     delivery = models.ManyToManyField(LiveDeliveryServer)
 
     def __str__(self):
@@ -879,7 +879,7 @@ class LiveTemplateScene(models.Model):
         return f"{self.template}: {self.name}"
 
     def instantiate(self, public=True):
-        context = Context({"scene": self, "campusonline": dict()})
+        context = Context({"scene": self, "campusonline": None})
         if self.template.room:
             from outpost.django.campusonline.serializers import (
                 PersonSerializer,
@@ -909,15 +909,13 @@ class LiveTemplateScene(models.Model):
                 except Person.DoesNotExist as e:
                     logger.warn(f"No Person found: {e}")
                     presenter = None
-                context["campusonline"].update(
-                    {
-                        "title": cgt.get("title", ""),
-                        "presenter": PersonSerializer(presenter).data
-                        if presenter
-                        else None,
-                        "course": CourseSerializer(course).data if course else None,
-                    }
-                )
+                context["campusonline"] = {
+                    "title": cgt.get("title", ""),
+                    "presenter": PersonSerializer(presenter).data
+                    if presenter
+                    else None,
+                    "course": CourseSerializer(course).data if course else None,
+                }
         event = LiveEvent.objects.create(
             channel=self.template.channel,
             public=public,
