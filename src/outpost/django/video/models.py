@@ -684,12 +684,14 @@ class LiveEvent(models.Model):
             for r, c in required.items():
                 JobConstraint.objects.create(job=self.job, resource=r, required=c)
             if not self.job.assign():
+                logger.error(f"Could not assign job for {self}")
                 return False
         for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(pk=self.pk):
             logger.warning(f"Stopping active LiveEvent {le} ahead of starting {self}")
             le.stop()
         if not self.job.running:
             if not self.job.start({"event": self}):
+                logger.error(f"Could not start job for {self}")
                 return False
 
         self.save()
@@ -700,7 +702,10 @@ class LiveEvent(models.Model):
 
         self.end = timezone.now()
         if self.job:
-            self.job.stop()
+            try:
+                self.job.stop()
+            except Exception:
+                logger.warn(f"Could not stop job for {self}")
         for portal in self.channel.portals.all():
             portal.stop(self)
         self.save()
