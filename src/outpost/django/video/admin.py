@@ -167,7 +167,7 @@ class LiveViewerInline(admin.TabularInline):
 
 @admin.register(models.LiveEvent)
 class LiveEventAdmin(admin.ModelAdmin):
-    list_display = ("pk", "channel", "title", "begin", "end", "public")
+    list_display = ("pk", "channel", "title", "started", "begin", "end", "public")
     list_filter = ("channel", "public", "begin", "end")
     search_fields = ("title", "description")
     inlines = (LiveStreamInline, LiveViewerInline)
