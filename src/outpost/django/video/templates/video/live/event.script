@@ -8,6 +8,7 @@ import signal
 import shutil
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 GPU = "{{ properties.gpuid }}"
@@ -39,6 +40,12 @@ STREAMS = [
     },
 {% endfor %}
 ]
+
+PROTOCOL_OPTIONS = {
+    "rtsp": [
+        "-rtsp_transport", "tcp",
+    ],
+}
 
 
 HTACCESS = '''
@@ -83,12 +90,14 @@ async def inspect(stream):
 
 async def preview(stream):
     name = stream.get("name")
+    protocol = urlparse(stream.get("source")).scheme
+    options = PROTOCOL_OPTIONS.get(protocol, list())
     return await asyncio.create_subprocess_exec(
         FFMPEG,
         "-y",
         "-hide_banner",
         "-loglevel", "warning",
-        "-rtsp_transport", "tcp",
+        *options,
         "-c:v", "h264_cuvid",
         "-i", stream.get("source"),
         f"-filter_complex", f"[0:v]fps=fps=1/{PREVIEW}[out]",
@@ -103,6 +112,8 @@ async def preview(stream):
 async def transcode(stream):
     name = stream.get("name")
     variants = stream.get("variants")
+    protocol = urlparse(stream.get("source")).scheme
+    options = PROTOCOL_OPTIONS.get(protocol, list())
     has_audio = any(filter(
         lambda s: s.get("codec_type") == "audio",
         stream.get("metadata").get("streams")
@@ -151,6 +162,10 @@ async def transcode(stream):
         "-y",
         "-hide_banner",
         "-loglevel", "warning",
+        "-fflags", "nobuffer",
+        "-flags", "low_delay",
+        "-strict", "experimental",
+        *options,
         "-c:v", "h264_cuvid",
         "-i", stream.get("source"),
         "-filter_complex", ";".join(filters),
