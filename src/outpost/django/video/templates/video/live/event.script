@@ -51,12 +51,12 @@ PROTOCOL_OPTIONS = {
 HTACCESS = '''
 AddType image/webp .webp
 <FilesMatch "\.(m3u8|ts)$">
-    Header set Cache-Control "max-age={SEGMENT},public" "expr=%{REQUEST_STATUS} == 200"
-    Header always set Cache-Control "max-age=0, no-cache, no-store, must-revalidate" "expr=%{REQUEST_STATUS} == 404"
+    Header set Cache-Control "max-age={SEGMENT},public" "expr=%{% templatetag openvariable %}REQUEST_STATUS{% templatetag closevariable %} == 200"
+    Header always set Cache-Control "max-age=0, no-cache, no-store, must-revalidate" "expr=%{% templatetag openvariable %}REQUEST_STATUS{% templatetag closevariable %} == 404"
 </FilesMatch>
 <FilesMatch "\.jpg$">
-    Header set Cache-Control "max-age={PREVIEW},public" "expr=%{REQUEST_STATUS} == 200"
-    Header always set Cache-Control "max-age=0, no-cache, no-store, must-revalidate" "expr=%{REQUEST_STATUS} == 404"
+    Header set Cache-Control "max-age={PREVIEW},public" "expr=%{% templatetag openvariable %}REQUEST_STATUS{% templatetag closevariable %} == 200"
+    Header always set Cache-Control "max-age=0, no-cache, no-store, must-revalidate" "expr=%{% templatetag openvariable %}REQUEST_STATUS{% templatetag closevariable %} == 404"
 </FilesMatch>
 RewriteEngine on
 RewriteCond %{{HTTP_ACCEPT}} image/webp
