@@ -695,7 +695,9 @@ class LiveEvent(models.Model):
                 return False
 
         self.save()
-        transaction.on_commit(lambda: LiveEventTasks.ready_to_publish.delay(self.pk))
+        transaction.commit()
+        #transaction.on_commit(lambda: LiveEventTasks.ready_to_publish.delay(self.pk))
+        LiveEventTasks.ready_to_publish.apply_async((self.pk,), countdown=5)
 
     def stop(self):
         from .tasks import LiveEventTasks
