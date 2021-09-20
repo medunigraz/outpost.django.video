@@ -722,6 +722,7 @@ class LiveEvent(models.Model):
             portal.start(self)
         self.begin = timezone.now()
         self.save()
+        return True
 
     def stop(self):
         from .tasks import LiveEventTasks
