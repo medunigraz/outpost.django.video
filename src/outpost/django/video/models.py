@@ -10,12 +10,14 @@ from functools import lru_cache, partial, reduce
 from hashlib import sha256
 from math import ceil
 from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tenacity import Retrying, RetryError, stop_after_attempt, wait_fixed
 from zipfile import ZipFile
 
 import asyncssh
 import certifi
 import django
 import requests
+import streamlink
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
@@ -693,11 +695,33 @@ class LiveEvent(models.Model):
             if not self.job.start({"event": self}):
                 logger.error(f"Could not start job for {self}")
                 return False
-
         self.save()
         transaction.commit()
         #transaction.on_commit(lambda: LiveEventTasks.ready_to_publish.delay(self.pk))
-        LiveEventTasks.ready_to_publish.apply_async((self.pk,), countdown=5)
+        #LiveEventTasks.ready_to_publish.apply_async((self.pk,), countdown=5)
+        try:
+            for attempt in Retrying(stop=stop_after_attempt(60), wait=wait_fixed(2)):
+                with attempt:
+                    for ds in self.delivery.all():
+                        v = LiveViewer.objects.create(event=self, delivery=ds)
+                        try:
+                            for ls in self.livestream_set.all():
+                                url = ls.viewer(viewer=v)
+                                streamlink.streams(url)
+                        except streamlink.StreamlinkError as e:
+                            logger.warn(f"Stream {ls} not ready: {e}")
+                            raise e
+                        finally:
+                            v.disable()
+                            v.delete()
+        except RetryError:
+            logger.error(f"Could not find initialized streams for: {self}")
+            return False
+        # Notify portal
+        for portal in le.channel.portals.all():
+            portal.start(le)
+        le.begin = timezone.now()
+        le.save()
 
     def stop(self):
         from .tasks import LiveEventTasks
