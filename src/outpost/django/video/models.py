@@ -718,10 +718,10 @@ class LiveEvent(models.Model):
             logger.error(f"Could not find initialized streams for: {self}")
             return False
         # Notify portal
-        for portal in le.channel.portals.all():
-            portal.start(le)
-        le.begin = timezone.now()
-        le.save()
+        for portal in self.channel.portals.all():
+            portal.start(self)
+        self.begin = timezone.now()
+        self.save()
 
     def stop(self):
         from .tasks import LiveEventTasks
