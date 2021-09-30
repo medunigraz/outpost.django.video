@@ -396,7 +396,7 @@ class ExportTasks:
         (inst, _) = cls.objects.get_or_create(recording=rec)
         if not inst.data:
             logger.info(f"Recording {rec.pk} processing: {cls}")
-            inst.process(cls.progress)
+            inst.process(progress)
             logger.debug(f"Recording {rec.pk} download URL: {inst.data.url}")
         return urljoin(base_uri, inst.data.url)
 
