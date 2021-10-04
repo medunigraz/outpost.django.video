@@ -13,6 +13,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
+from .conf import settings
 from .permissions import EpiphanChannelPermissions
 from .serializers import (
     EpiphanChannelSerializer,
@@ -70,8 +71,9 @@ class ExportClassViewSet(ListAPIView, RetrieveAPIView, GenericViewSet):
     def post(self, request, *args, **kwargs):
         exporter = request.data.get("exporter")
         recording = request.data.get("recording")
-        task = ExportTasks.create.delay(
-            recording, exporter, request.build_absolute_uri("/")
+        task = ExportTasks.create.apply_async(
+            (recording, exporter, request.build_absolute_uri("/")),
+            queue=settings.VIDEO_CELERY_QUEUE
         )
         result = {"task": task.id}
         return Response(result)

@@ -164,7 +164,7 @@ class Epiphan(Recorder):
         if self.provision:
             from .tasks import EpiphanTasks
 
-            EpiphanTasks.provision.delay(self.pk)
+            EpiphanTasks.provision.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
 
     def reboot(self):
         url = self.url.path("admin/reboot.cgi").as_string()
@@ -736,7 +736,9 @@ class LiveEvent(models.Model):
         for portal in self.channel.portals.all():
             portal.stop(self)
         self.save()
-        transaction.on_commit(lambda: LiveEventTasks.cleanup.delay(self.pk))
+        transaction.on_commit(
+            lambda: LiveEventTasks.cleanup.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
+        )
 
     def viewer(self, request):
         path = reverse("video:live-viewer", kwargs={"event_id": self.pk})

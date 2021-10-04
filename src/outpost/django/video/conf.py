@@ -7,6 +7,7 @@ from django.conf import settings
 class VideoAppConf(AppConf):
     EPIPHAN_PROVISIONING = False
     EPIPHAN_PREVIEW = False
+    CELERY_QUEUE = "video"
     CRATES_RECORDING_URL = "http://localhost/recording/online/{pk}"
     RECORDING_UPLOAD_SERVER_ENCRYPTION = [
         "chacha20-poly1305@openssh.com",

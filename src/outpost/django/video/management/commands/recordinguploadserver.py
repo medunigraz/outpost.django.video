@@ -142,19 +142,19 @@ class SFTPServer(asyncssh.SFTPServer):
         rec.save()
         logger.info("Starting post-upload task chain")
         tasks = [
-            RecordingTasks.process.si(rec.pk),
-            RecordingTasks.metadata.si(rec.pk)
+            RecordingTasks.process.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE),
+            RecordingTasks.metadata.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE),
         ]
         if rec.recorder.auphonic:
             tasks.extend(
                 [
-                    AuphonicTasks.process.si(rec.pk),
-                    AuphonicTasks.retrieve.s(rec.pk),
-                    RecordingTasks.process.si(rec.pk)
+                    AuphonicTasks.process.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE),
+                    AuphonicTasks.retrieve.signature((rec.pk,), immutable=False, queue=settings.VIDEO_CELERY_QUEUE),
+                    RecordingTasks.process.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE),
                 ]
             )
-        tasks.append(RecordingTasks.notify.si(rec.pk))
-        result = chain(*tasks).delay()
+        tasks.append(RecordingTasks.notify.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE))
+        result = chain(*tasks).apply_async(queue=settings.VIDEO_CELERY_QUEUE)
         logger.info(f"Done starting post-upload task chain: {result.id}")
 
     @log
