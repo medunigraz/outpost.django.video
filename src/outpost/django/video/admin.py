@@ -1,5 +1,5 @@
-from django.contrib import admin
-from django.utils.translation import ugettext_lazy as _
+from django.contrib import admin, messages
+from django.utils.translation import ugettext_lazy as _, ngettext
 from outpost.django.base.admin import NotificationInlineAdmin
 
 from . import models
@@ -155,6 +155,45 @@ class LiveTemplateSceneAdmin(admin.ModelAdmin):
     list_filter = ("template",)
     search_fields = ("name",)
     inlines = (LiveTemplateStreamInline,)
+    actions = ("public", "private")
+
+    def public(self, request, queryset):
+        for e in queryset.all():
+            le = e.instantiate(True)
+            if le.start():
+                self.message_user(
+                    request,
+                    _("Live event {} was started.").format(le),
+                    messages.SUCCESS
+                )
+            else:
+                le.stop()
+                self.message_user(
+                    request,
+                    _("Live event {} failed to start.").format(le),
+                    messages.ERROR
+                )
+
+    public.short_description = _("Start new public live events")
+
+    def private(self, request, queryset):
+        for e in queryset.all():
+            le = e.instantiate(False)
+            if le.start():
+                self.message_user(
+                    request,
+                    _("Live event {} was started.").format(le),
+                    messages.SUCCESS
+                )
+            else:
+                le.stop()
+                self.message_user(
+                    request,
+                    _("Live event {} failed to start.").format(le),
+                    messages.ERROR
+                )
+
+    private.short_description = _("Start new private live events")
 
 
 class LiveStreamInline(admin.TabularInline):
