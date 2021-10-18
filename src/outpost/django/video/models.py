@@ -35,6 +35,7 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_extensions.db.fields import ShortUUIDField
 from django_extensions.db.models import TimeStampedModel
+from django_prometheus.models import ExportModelOperationsMixin
 from django_sshworker.models import Job, JobConstraint, Resource
 from imagekit.models import ProcessedImageField
 from imagekit.processors import ResizeToFill
@@ -357,7 +358,7 @@ class PanasonicCamera(NetworkedDeviceMixin, Input):
 
 
 @signal_connect
-class Recording(TimeStampedModel, PolymorphicModel):
+class Recording(ExportModelOperationsMixin("video.Recording"), TimeStampedModel, PolymorphicModel):
     recorder = models.ForeignKey(
         "Recorder", null=True, blank=True, on_delete=models.SET_NULL
     )
@@ -457,7 +458,7 @@ class RecordingAsset(TimeStampedModel):
         self.preview.delete(False)
 
 
-class Export(TimeStampedModel, PolymorphicModel):
+class Export(ExportModelOperationsMixin("video.Export"), TimeStampedModel, PolymorphicModel):
     recording = models.ForeignKey("Recording", on_delete=models.CASCADE)
 
 
@@ -654,7 +655,7 @@ class LiveDeliveryServer(models.Model):
         raise Exception(f"{self.config} is not a valid Redis URL")
 
 
-class LiveEvent(models.Model):
+class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
     id = ShortUUIDField(primary_key=True)
     channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
     public = models.BooleanField(default=False)
@@ -793,7 +794,7 @@ class LiveStreamVariantRequirement(models.Model):
 
 
 @signal_connect
-class LiveViewer(models.Model):
+class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
     id = ShortUUIDField(primary_key=True)
     event = models.ForeignKey(LiveEvent, on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True)
