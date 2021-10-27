@@ -209,6 +209,7 @@ class LiveEventAdmin(admin.ModelAdmin):
     list_display = ("pk", "channel", "title", "started", "begin", "end", "public")
     list_filter = ("channel", "public", "begin", "end")
     search_fields = ("title", "description")
+    date_hierarchy = "begin"
     inlines = (LiveStreamInline, LiveViewerInline)
     actions = ("start", "stop")
 
