@@ -131,18 +131,19 @@ async def transcode(stream):
         filters.append(f"[v_{v}]scale=-1:{height}[v_{v}_scaled]")
         maps.extend([
             "-map", f"[v_{v}_scaled]",
+            f"-r:v:{v}", "30",
             f"-c:v:{v}", "h264_nvenc",
             "-gpu", GPU,
-            "-b:v:0", vdata.get("video"),
-            "-maxrate:v:0", vdata.get("video"),
-            "-minrate:v:0", vdata.get("video"),
-            "-bufsize:v:0", vdata.get("video"),
-            "-preset", vdata.get("preset"),
-            "-profile:v", vdata.get("profile"),
-            "-g", "60",
-            "-sc_threshold", "0",
-            "-keyint_min", "60",
-            "-rc-lookahead", "0",
+            f"-b:v:{v}", vdata.get("video"),
+            f"-maxrate:v:{v}", vdata.get("video"),
+            f"-minrate:v:{v}", vdata.get("video"),
+            f"-bufsize:v:{v}", vdata.get("video"),
+            f"-preset:v:{v}", vdata.get("preset"),
+            f"-profile:v:{v}", vdata.get("profile"),
+            f"-g:v:{v}", "60",
+            f"-sc_threshold:v:{v}", "0",
+            f"-keyint_min:v:{v}", "60",
+            f"-rc-lookahead:v:{v}", "0",
         ])
         if has_audio:
             embeds.append(f"v:{v},a:{v}")
@@ -153,7 +154,7 @@ async def transcode(stream):
         for v, vdata in variants.items():
             maps.extend([
                 "-map", "0:a",
-                "-c:a:0", "aac",
+                f"-c:a:{v}", "aac",
                 f"-b:a:{v}", vdata.get("audio"),
             ])
 
