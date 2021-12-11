@@ -885,7 +885,7 @@ class LiveStreamStatistic(models.Model):
 class LiveViewerStatistic(models.Model):
     viewer = models.ForeignKey(LiveViewer, on_delete=models.CASCADE)
     datetime = models.DateTimeField()
-    stream = models.ForeignKey(LiveStream)
+    stream = models.ForeignKey(LiveStream, on_delete=models.CASCADE)
 
 
 class LiveTemplate(models.Model):
