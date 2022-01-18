@@ -138,7 +138,7 @@ class Epiphan(Recorder):
         if not self.key:
             return None
         k = asyncssh.import_private_key(self.key.tobytes())
-        d = sha256(k.get_ssh_public_key()).digest()
+        d = sha256(k.public_data).digest()
         f = b64encode(d).replace(b"=", b"").decode("utf-8")
         return "SHA256:{}".format(f)
 
