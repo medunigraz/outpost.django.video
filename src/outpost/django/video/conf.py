@@ -7,6 +7,8 @@ from django.conf import settings
 class VideoAppConf(AppConf):
     EPIPHAN_PROVISIONING = False
     EPIPHAN_PREVIEW = False
+    EPIPHAN_PREVIEW_TIMEOUT = 200000
+    EPIPHAN_PREVIEW_ANALYZE_DURATION = 100000000
     CELERY_QUEUE = "video"
     CRATES_RECORDING_URL = "http://localhost/recording/online/{pk}"
     RECORDING_UPLOAD_SERVER_ENCRYPTION = [
