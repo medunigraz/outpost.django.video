@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _, ngettext
 from outpost.django.base.admin import NotificationInlineAdmin
 
@@ -42,10 +43,9 @@ class ServerAdmin(admin.ModelAdmin):
     readonly_fields = ("fingerprint",)
 
     def fingerprint(self, obj):
-        return "<code>{}</code>".format(obj.fingerprint())
+        return mark_safe("<code>{}</code>".format(obj.fingerprint()))
 
     fingerprint.short_description = u"SSH host key fingerprint"
-    fingerprint.allow_tags = True
 
 
 @admin.register(models.Epiphan)
@@ -68,16 +68,14 @@ class EpiphanAdmin(admin.ModelAdmin):
     )
 
     def fingerprint(self, obj):
-        return "<code>{}</code>".format(obj.fingerprint())
+        return mark_safe("<code>{}</code>".format(obj.fingerprint()))
 
     fingerprint.short_description = u"SSH public key fingerprint"
-    fingerprint.allow_tags = True
 
     def private_key(self, obj):
-        return "<pre>{}</pre>".format(obj.private_key())
+        return mark_safe("<pre>{}</pre>".format(obj.private_key()))
 
     private_key.short_description = u"SSH private key"
-    private_key.allow_tags = True
 
 
 # class EventInlineAdmin(admin.TabularInline):
