@@ -801,6 +801,7 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
     event = models.ForeignKey(LiveEvent, on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True)
     delivery = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
+    statistics = JSONField(null=True, blank=True)
 
     def pre_save(self, *args, **kwargs):
         if not hasattr(self, "delivery"):
@@ -882,13 +883,6 @@ class LiveStreamStatistic(models.Model):
 
     def __str__(self):
         return f"{self.stream}@{self.datetime}"
-
-
-class LiveViewerStatistic(models.Model):
-    viewer = models.ForeignKey(LiveViewer, on_delete=models.CASCADE)
-    datetime = models.DateTimeField()
-    stream = models.ForeignKey(LiveStream, on_delete=models.CASCADE)
-    variant = models.ForeignKey(LiveStreamVariant, on_delete=models.CASCADE)
 
 
 class LiveTemplate(models.Model):
