@@ -771,6 +771,14 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                 data.get(s.type).append(url.as_string())
         return data
 
+    def viewer_count(self):
+        return max(
+            [
+                s.viewer_count()
+                for s in self.livestream_set.all()
+            ]
+        )
+
     def __str__(self):
         return f"{self.pk}: {self.title}"
 
