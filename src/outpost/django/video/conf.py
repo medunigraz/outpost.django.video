@@ -34,6 +34,8 @@ class VideoAppConf(AppConf):
     AUPHONIC_SILENCE_THRESHOLD = 0.9
     LIVE_HLS_SEGEMENT = 2
     LIVE_VIEWER_LIFETIME = timedelta(days=1)
+    LIVE_STARTUP_ATTEMPTS = 30
+    LIVE_STARTUP_WAIT = 2
 
     class Meta:
         prefix = "video"

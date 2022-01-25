@@ -699,11 +699,18 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                 logger.error(f"Could not start job for {self}")
                 return False
         self.save()
-        transaction.commit()
-        #transaction.on_commit(lambda: LiveEventTasks.ready_to_publish.delay(self.pk))
-        #LiveEventTasks.ready_to_publish.apply_async((self.pk,), countdown=5)
+        #transaction.commit()
+        #task = LiveEventTasks.ready_to_publish.apply_async(
+        #    (self.pk,),
+        #    queue=settings.VIDEO_CELERY_QUEUE
+        #)
+        #task.wait(60)
+        retry = Retrying(
+            stop=stop_after_attempt(settings.VIDEO_LIVE_STARTUP_ATTEMPTS),
+            wait=wait_fixed(settings.VIDEO_LIVE_STARTUP_WAIT)
+        )
         try:
-            for attempt in Retrying(stop=stop_after_attempt(60), wait=wait_fixed(2)):
+            for attempt in retry:
                 with attempt:
                     for ds in self.delivery.all():
                         v = LiveViewer.objects.create(event=self, delivery=ds)
