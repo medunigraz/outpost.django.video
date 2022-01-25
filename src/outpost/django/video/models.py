@@ -712,7 +712,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                                 url = ls.viewer(viewer=v)
                                 streamlink.streams(url)
                         except streamlink.StreamlinkError as e:
-                            logger.warn(f"Stream {ls} not ready: {e}")
+                            logger.warn(f"Stream {ls} not ready after {attempt.retry_state.attempt_number}: {e}")
                             raise e
                         finally:
                             v.disable()
