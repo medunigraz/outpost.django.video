@@ -3,7 +3,7 @@ import logging
 from braces.views import CsrfExemptMixin, JSONResponseMixin
 from django.contrib.auth.decorators import permission_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseNotFound
 from django.shortcuts import get_list_or_404, get_object_or_404
 from django.template import Context, Template
 from django.utils.decorators import method_decorator
@@ -21,10 +21,10 @@ class LiveRoom(CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, View):
         try:
             room = models.LiveTemplate.objects.get(pk=template_id)
         except models.LiveTemplate.DoesNotExist:
-            return HttpResponse("404 Page not found", status=404)
+            return HttpResponseNotFound()
         if not room.channel.liveevent_set.filter(end__isnull=True).exists():
-            return HttpResponse("404 Page not found", status=404)
-        return HttpResponse("200 Stream online")
+            return HttpResponseNotFound()
+        return HttpResponse()
 
     @method_decorator(permission_required("video.add_liveevent", raise_exception=True))
     def post(self, request, template_id, scene_id, public):
