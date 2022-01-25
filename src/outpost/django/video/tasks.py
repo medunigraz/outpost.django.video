@@ -645,12 +645,13 @@ class AuphonicTasks:
 class LiveEventTasks:
     @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:cleanup")
     def cleanup(task, pk):
-        logger.debug(f"Cleaning up live event: {pk}")
+        logger.info(f"Cleaning up live event: {pk}")
         event = LiveEvent.objects.get(pk=pk)
-        for viewer in event.viewers.all():
-            viewer.disable()
-            viewer.stats()
-            viewer.cleanup()
+        for v in event.liveviewer_set.select_related("event").all():
+            v.disable()
+            v.collect()
+            v.save()
+            v.cleanup()
 
     @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:is_alive")
     def is_alive(task):

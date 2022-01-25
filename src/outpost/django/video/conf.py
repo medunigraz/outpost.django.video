@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from appconf import AppConf
 from django.conf import settings
+from django.utils import timezone
 
 
 class VideoAppConf(AppConf):
@@ -34,6 +35,8 @@ class VideoAppConf(AppConf):
     AUPHONIC_SILENCE_THRESHOLD = 0.9
     LIVE_HLS_SEGEMENT = 2
     LIVE_VIEWER_LIFETIME = timedelta(days=1)
+    LIVE_DELIVERY_NOW_FORMAT = "%a, %d %b %Y %H:%M:%S %Z"
+    LIVE_DELIVERY_NOW_TIMEZONE = timezone.pytz.timezone("Etc/GMT")
     LIVE_STARTUP_ATTEMPTS = 30
     LIVE_STARTUP_WAIT = 2
 

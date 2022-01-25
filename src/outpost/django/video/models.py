@@ -819,27 +819,28 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
     def post_save(self, *args, **kwargs):
         if not self.event.end:
             self.delivery.redis.setex(
-                f"HLS/{self.pk}", settings.VIDEO_LIVE_VIEWER_LIFETIME, self.event.pk
+                f"HLS/Viewer/{self.pk}", settings.VIDEO_LIVE_VIEWER_LIFETIME, self.event.pk
             )
 
     def disable(self):
-        self.delivery.redis.delete(f"HLS/{self.pk}")
+        self.delivery.redis.delete(f"HLS/Viewer/{self.pk}")
 
-    def stats(self):
-        for stream in self.event.streams.all():
-            segments = self.delivery.redis.hgetall(f"HLS/{self.pk}/{stream.pk}")
-            entries = [
-                LiveViewerStatistic(
-                    stream=stream, datetime=t, s=self.event.streams.get(pk=s)
-                )
-                for t, s in segments.items()
-            ]
-            LiveViewerStatistic.objects.bulk_create(entries)
+    def collect(self):
+        fmt = settings.VIDEO_LIVE_DELIVERY_NOW_FORMAT
+        tz = settings.VIDEO_LIVE_DELIVERY_NOW_TIMEZONE
+        strp = timezone.datetime.strptime
+        self.statistics = {
+            s.pk: {
+                strp(ts.decode(), fmt).replace(tzinfo=tz).isoformat(): str(s.variants.all()[int(sid.decode())])
+                for ts, sid in self.delivery.redis.hgetall(f"HLS/Viewer/{self.pk}/{s.pk}").items()
+            }
+            for s in self.event.livestream_set.prefetch_related("variants").all()
+        }
 
     def cleanup(self):
-        self.delivery.redis.delete(f"HLS/{self.pk}")
-        for stream in self.event.streams.all():
-            self.delivery.redis.delete(f"HLS/{self.pk}/{stream.pk}")
+        self.delivery.redis.delete(f"HLS/Viewer/{self.pk}")
+        for s in self.event.streams.all():
+            self.delivery.redis.delete(f"HLS/Viewer/{self.pk}/{s.pk}")
 
     def __str__(self):
         return f"{self.event}: {self.id} ({self.delivery})"
@@ -868,7 +869,7 @@ class LiveStream(models.Model):
     def stats(self):
         accumulator = dict()
         for delivery in self.event.delivery.filter(online=True):
-            timestamps = delivery.redis.hgetall(f"HLS/{self.event.pk}/{self.pk}")
+            timestamps = delivery.redis.hgetall(f"HLS/Stream/{self.event.pk}/{self.pk}")
             for t, c in timestamps.items():
                 accumulator[t] = accumulator.get(t, 0) + int(c)
         LiveStreamStatistic.objects.bulk_create(
@@ -878,9 +879,23 @@ class LiveStream(models.Model):
             ]
         )
 
+    @memoize(timeout=30)
+    def viewer_count(self):
+        now = timezone.now().astimezone(
+            settings.VIDEO_LIVE_DELIVERY_NOW_TIMEZONE
+        ).strftime(
+            settings.VIDEO_LIVE_DELIVERY_NOW_FORMAT
+        )
+        return sum(
+            [
+                d.redis.hget(f"HLS/Stream/{self.event.pk}/{self.pk}", now) or 0
+                for d in self.event.delivery.filter(online=True)
+            ]
+        )
+
     def cleanup(self):
         for delivery in self.event.delivery.filter(online=True):
-            delivery.redis.delete(f"HLS/{self.event.pk}/{self.pk}")
+            delivery.redis.delete(f"HLS/Stream/{self.event.pk}/{self.pk}")
 
 
 class LiveStreamStatistic(models.Model):
