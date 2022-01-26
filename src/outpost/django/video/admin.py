@@ -1,6 +1,10 @@
+from django.conf.urls import url
 from django.contrib import admin, messages
+from django.http import HttpResponse
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _, ngettext
+from django.utils.html import format_html
+from django.urls import reverse
 from outpost.django.base.admin import NotificationInlineAdmin
 
 from . import models
@@ -210,6 +214,7 @@ class LiveEventAdmin(admin.ModelAdmin):
     date_hierarchy = "begin"
     inlines = (LiveStreamInline, LiveViewerInline)
     actions = ("start", "stop")
+    readonly_fields = ('statistics_link',)
 
     def start(self, request, queryset):
         for e in queryset.all():
@@ -222,3 +227,26 @@ class LiveEventAdmin(admin.ModelAdmin):
             e.stop()
 
     stop.short_description = _("Stop selected live events")
+
+    def get_urls(self):
+        urls = super().get_urls()
+        urls += [
+            url(r'^statistics/(?P<pk>\w+)$', self.statistics_file,
+                name='video_liveevent_statistics'),
+        ]
+        return urls
+
+    def statistics_link(self, obj):
+        return format_html(
+            '<a href="{}">XLSX</a>',
+            reverse('admin:video_liveevent_statistics', args=[obj.pk])
+        )
+    statistics_link.short_description = "Statistics"
+
+    def statistics_file(self, request, pk):
+        response = HttpResponse()
+        le = models.LiveEvent.objects.get(pk=pk)
+        mt = le.excel(response)
+        response['Content-Type'] = mt
+        response['Content-Disposition'] = f'attachment; filename="{le.pk}.xlsx"'
+        return response

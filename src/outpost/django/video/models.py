@@ -11,7 +11,7 @@ from hashlib import sha256
 from math import ceil
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from tenacity import Retrying, RetryError, stop_after_attempt, wait_fixed
-from zipfile import ZipFile
+from zipfile import ZipFile, ZIP_DEFLATED
 
 import asyncssh
 import certifi
@@ -32,7 +32,7 @@ from django.template import Context, Template
 from django.template.loader import get_template
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ugettext_lazy as _, ugettext
 from django_extensions.db.fields import ShortUUIDField
 from django_extensions.db.models import TimeStampedModel
 from django_prometheus.models import ExportModelOperationsMixin
@@ -51,6 +51,8 @@ from outpost.django.campusonline.models import Course, CourseGroupTerm, Person
 from PIL import Image
 from polymorphic.models import PolymorphicModel
 from purl import URL
+from openpyxl import Workbook
+from openpyxl.writer.excel import ExcelWriter
 from redis import Redis
 from webvtt import Caption, WebVTT
 
@@ -778,6 +780,32 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                 for s in self.livestream_set.all()
             ]
         )
+
+    def excel(self, output):
+        wb = Workbook()
+        wb.active.title = str(self.title)
+        wb.active.append((
+            ugettext("Viewer-ID"),
+            ugettext("Delivery-URL"),
+            ugettext("Stream Type"),
+            ugettext("Timestamp"),
+            ugettext("Variant"),
+        ))
+        for lv in self.liveviewer_set.all():
+            for sid, timestamps in lv.statistics.items():
+                ls = self.livestream_set.get(pk=sid)
+                for ts, variant in timestamps:
+                    wb.active.append((
+                        lv.pk,
+                        str(lv.delivery),
+                        ls.type,
+                        ts,
+                        variant,
+                    ))
+        archive = ZipFile(output, 'w', ZIP_DEFLATED, allowZip64=True)
+        writer = ExcelWriter(wb, archive)
+        writer.save()
+        return wb.mime_type
 
     def __str__(self):
         return f"{self.pk}: {self.title}"
