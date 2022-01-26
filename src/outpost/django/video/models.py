@@ -794,7 +794,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         for lv in self.liveviewer_set.all():
             for sid, timestamps in lv.statistics.items():
                 ls = self.livestream_set.get(pk=sid)
-                for ts, variant in timestamps:
+                for ts, variant in timestamps.items():
                     wb.active.append((
                         lv.pk,
                         str(lv.delivery),
