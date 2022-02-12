@@ -701,6 +701,12 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                 logger.error(f"Could not start job for {self}")
                 return False
         self.save()
+        # Set transcoder id on delivery servers
+        for ds in self.delivery.all():
+            ds.redis.set(
+                f"HLS/Event/{self.pk}",
+                self.job.worker.properties.get("transcoder-id")
+            )
         #transaction.commit()
         #task = LiveEventTasks.ready_to_publish.apply_async(
         #    (self.pk,),
@@ -729,12 +735,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         except RetryError:
             logger.error(f"Could not find initialized streams for: {self}")
             return False
-        # Set transcoder id on delivery servers
-        for ds in self.delivery.all():
-            ds.redis.set(
-                f"HLS/Event/{self.pk}",
-                self.job.worker.properties.get("transcoder-id")
-            )
         # Notify portal
         for portal in self.channel.portals.all():
             portal.start(self)
