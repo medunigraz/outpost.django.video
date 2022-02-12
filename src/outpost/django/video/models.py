@@ -729,6 +729,12 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         except RetryError:
             logger.error(f"Could not find initialized streams for: {self}")
             return False
+        # Set transcoder id on delivery servers
+        for ds in self.delivery.all():
+            ds.redis.set(
+                f"HLS/Event/{self.pk}",
+                self.job.worker.properties.get("transcoder-id")
+            )
         # Notify portal
         for portal in self.channel.portals.all():
             portal.start(self)
@@ -740,13 +746,18 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         from .tasks import LiveEventTasks
 
         self.end = timezone.now()
+        # Notify portal
+        for portal in self.channel.portals.all():
+            portal.stop(self)
+        # Remove transcoder id from delivery servers
+        for ds in self.delivery.all():
+            ds.redis.delete(f"HLS/Event/{self.pk}")
+        # Stop transcoding job
         if self.job:
             try:
                 self.job.stop()
             except Exception:
                 logger.warn(f"Could not stop job for {self}")
-        for portal in self.channel.portals.all():
-            portal.stop(self)
         self.save()
         transaction.on_commit(
             lambda: LiveEventTasks.cleanup.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
