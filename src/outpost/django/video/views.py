@@ -22,7 +22,7 @@ class LiveRoom(CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, View):
             room = models.LiveTemplate.objects.get(pk=template_id)
         except models.LiveTemplate.DoesNotExist:
             return HttpResponseNotFound()
-        if not room.channel.liveevent_set.filter(end__isnull=True).exists():
+        if not room.channel.liveevent_set.filter(begin__isnull=False, end__isnull=True).exists():
             return HttpResponseNotFound()
         return HttpResponse()
 

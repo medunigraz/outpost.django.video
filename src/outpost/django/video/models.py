@@ -678,6 +678,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
     def start(self):
         from .tasks import LiveEventTasks
         self.started = timezone.now()
+        self.save()
         if not self.job:
             self.job = Job.objects.create(script=self.script)
             requirements = self.livestream_set.values_list(
@@ -700,7 +701,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
             if not self.job.start({"event": self}):
                 logger.error(f"Could not start job for {self}")
                 return False
-        self.save()
         # Set transcoder id on delivery servers
         for ds in self.delivery.all():
             ds.redis.set(
