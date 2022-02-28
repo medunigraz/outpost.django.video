@@ -679,6 +679,9 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         from .tasks import LiveEventTasks
         self.started = timezone.now()
         self.save()
+        for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(pk=self.pk):
+            logger.warning(f"Stopping active LiveEvent {le} ahead of starting {self}")
+            le.stop()
         if not self.job:
             self.job = Job.objects.create(script=self.script)
             requirements = self.livestream_set.values_list(
@@ -694,9 +697,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
             if not self.job.assign():
                 logger.error(f"Could not assign job for {self}")
                 return False
-        for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(pk=self.pk):
-            logger.warning(f"Stopping active LiveEvent {le} ahead of starting {self}")
-            le.stop()
         if not self.job.running:
             if not self.job.start({"event": self}):
                 logger.error(f"Could not start job for {self}")
@@ -734,6 +734,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                             v.delete()
         except RetryError:
             logger.error(f"Could not find initialized streams for: {self}")
+            self.job.stop()
             return False
         # Notify portal
         for portal in self.channel.portals.all():
