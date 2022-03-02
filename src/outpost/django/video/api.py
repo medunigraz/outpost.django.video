@@ -13,6 +13,8 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
+from outpost.django.api.permissions import ExtendedDjangoModelPermissions
+
 from .conf import settings
 from .permissions import EpiphanChannelPermissions
 from .serializers import (
@@ -82,7 +84,7 @@ class ExportClassViewSet(ListAPIView, RetrieveAPIView, GenericViewSet):
 class RecorderViewSet(ModelViewSet):
     queryset = Recorder.objects.all()
     serializer_class = RecorderSerializer
-    permission_classes = (DjangoModelPermissions,)
+    permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ()
 
     def get_queryset(self):
@@ -94,7 +96,7 @@ class RecorderViewSet(ModelViewSet):
 class RecordingViewSet(ModelViewSet):
     queryset = Recording.objects.all()
     serializer_class = RecordingSerializer
-    permission_classes = (DjangoModelPermissions,)
+    permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ("recorder",)
 
     def get_queryset(self):
@@ -106,7 +108,7 @@ class RecordingViewSet(ModelViewSet):
 class RecordingAssetViewSet(ModelViewSet):
     queryset = RecordingAsset.objects.all()
     serializer_class = RecordingAssetSerializer
-    permission_classes = (DjangoModelPermissions,)
+    permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ("recording", "mimetype")
 
     def get_queryset(self):
@@ -118,7 +120,7 @@ class RecordingAssetViewSet(ModelViewSet):
 class EpiphanViewSet(ModelViewSet):
     queryset = Epiphan.objects.all()
     serializer_class = EpiphanSerializer
-    permission_classes = (DjangoModelPermissions,)
+    permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ()
 
 
@@ -139,7 +141,7 @@ class EpiphanChannelViewSet(ModelViewSet):
 class EpiphanSourceViewSet(ModelViewSet):
     queryset = EpiphanSource.objects.all()
     serializer_class = EpiphanSourceSerializer
-    permission_classes = (DjangoModelPermissions,)
+    permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ("epiphan",)
 
 
@@ -155,7 +157,7 @@ class LiveChannelViewSet(ReadOnlyModelViewSet):
 class LiveTemplateViewSet(FlexFieldsMixin, ReadOnlyModelViewSet):
     queryset = LiveTemplate.objects.all()
     serializer_class = LiveTemplateSerializer
-    permission_classes = (DjangoModelPermissions,)
+    permission_classes = (ExtendedDjangoModelPermissions,)
     permit_list_expands = ("livetemplatescene_set",)
     # filter_fields = ("epiphan",)
 
@@ -166,5 +168,5 @@ class LiveTemplateViewSet(FlexFieldsMixin, ReadOnlyModelViewSet):
 class LiveTemplateSceneViewSet(ReadOnlyModelViewSet):
     queryset = LiveTemplateScene.objects.all()
     serializer_class = LiveTemplateSceneSerializer
-    permission_classes = (DjangoModelPermissions,)
+    permission_classes = (ExtendedDjangoModelPermissions,)
     # filter_fields = ("epiphan",)

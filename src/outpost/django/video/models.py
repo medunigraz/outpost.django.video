@@ -111,11 +111,6 @@ class Recorder(NetworkedDeviceMixin, PolymorphicModel):
 
     class Meta:
         ordering = ("name", "hostname")
-        permissions = (
-            (("view_recorder", _("View Recorder")),)
-            if django.VERSION < (2, 1)
-            else tuple()
-        )
 
     def __str__(self):
         return self.name
@@ -409,11 +404,6 @@ class Recording(ExportModelOperationsMixin("video.Recording"), TimeStampedModel,
 
     class Meta:
         ordering = ("-created",)
-        permissions = (
-            (("view_recording", _("View Recording")),)
-            if django.VERSION < (2, 1)
-            else tuple()
-        )
 
     def pre_delete(self, *args, **kwargs):
         if self.online:
@@ -448,11 +438,6 @@ class RecordingAsset(TimeStampedModel):
 
     class Meta:
         ordering = ("-created",)
-        permissions = (
-            (("view_recordingasset", _("View Recording Asset")),)
-            if django.VERSION < (2, 1)
-            else tuple()
-        )
 
     def __str__(self):
         return self.name

@@ -1,15 +1,8 @@
-from rest_framework.permissions import DjangoModelPermissions
+from outpost.django.api.permissions import ExtendedDjangoModelPermissions
 
 
-class EpiphanChannelPermissions(DjangoModelPermissions):
-    perms_map = {
-        "GET": [],
-        "OPTIONS": [],
-        "HEAD": [],
-        "POST": ["%(app_label)s.add_%(model_name)s"],
-        "PUT": ["%(app_label)s.change_%(model_name)s"],
-        "PATCH": ["%(app_label)s.change_%(model_name)s"],
-        "DELETE": ["%(app_label)s.delete_%(model_name)s"],
+class EpiphanChannelPermissions(ExtendedDjangoModelPermissions):
+    perms_map = ExtendedDjangoModelPermissions.perms_map | {
         "START": ["%(app_label)s.change_%(model_name)s"],
         "STOP": ["%(app_label)s.change_%(model_name)s"],
     }
