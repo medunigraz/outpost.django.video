@@ -37,6 +37,20 @@ class EpiphanChannelSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class EpiphanMediaSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.EpiphanMedia
+        fields = "__all__"
+
+
+class EpiphanInputSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.EpiphanInput
+        fields = "__all__"
+
+
 class EpiphanSourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.EpiphanSource

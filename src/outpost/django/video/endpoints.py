@@ -6,6 +6,8 @@ v1 = [
     (r"video/epiphan", api.EpiphanViewSet, "video-epiphan"),
     (r"video/epiphanchannel", api.EpiphanChannelViewSet, "video-epiphanchannel"),
     (r"video/epiphansource", api.EpiphanSourceViewSet, "video-epiphansource"),
+    (r"video/epiphanmedia", api.EpiphanMediaViewSet, "video-epiphanmedia"),
+    (r"video/epiphaninput", api.EpiphanInputViewSet, "video-epiphaninput"),
     (r"video/recording", api.RecordingViewSet, "video-recording"),
     (r"video/recordingasset", api.RecordingAssetViewSet, "video-recordingasset"),
     (r"video/livechannel", api.LiveChannelViewSet, "video-livechannel"),

@@ -39,6 +39,15 @@ class EpiphanSourceInlineAdmin(admin.TabularInline):
     model = models.EpiphanSource
 
 
+class EpiphanMediaInlineAdmin(admin.TabularInline):
+    model = models.EpiphanMedia
+    readonly_fields = ("name",)
+
+
+class EpiphanInputInlineAdmin(admin.TabularInline):
+    model = models.EpiphanInput
+
+
 @admin.register(models.Server)
 class ServerAdmin(admin.ModelAdmin):
     list_display = ("__str__", "fingerprint", "enabled")
@@ -68,6 +77,8 @@ class EpiphanAdmin(admin.ModelAdmin):
     inlines = (
         EpiphanChannelInlineAdmin,
         EpiphanSourceInlineAdmin,
+        EpiphanMediaInlineAdmin,
+        EpiphanInputInlineAdmin,
         NotificationInlineAdmin,
     )
 

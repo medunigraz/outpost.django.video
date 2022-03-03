@@ -45,6 +45,8 @@ from .utils import (
 
 from .models import (  # EventAudio,; EventVideo,
     Epiphan,
+    EpiphanInput,
+    EpiphanMedia,
     EpiphanSource,
     Export,
     Recorder,
@@ -366,6 +368,85 @@ class EpiphanTasks:
 
         for e in epiphans:
             e.reboot()
+
+
+class EpiphanInputTasks:
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.EpiphanInput:set")
+    def set(task, pk):
+        ei = EpiphanInput.objects.get(pk=pk)
+        try:
+            resp = ei.epiphan.session.post(
+                ei.epiphan.url.path("admin/sources").add_path_segment(ei.name).as_string(),
+                data={
+                    "pfd_form_id": "vsource",
+                    "deinterlacing": "on" if ei.deinterlacing else "",
+                    "nosignal_src": ei.nosignal_src.name,
+                    "nosignal_timeout": ei.nosignal_timeout or ""
+                }
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Could not set {ei} on {ei.epiphan}: {e}")
+        else:
+            logger.debug(f"Set {ei} on {ei.epiphan}")
+        finally:
+            resp.close()
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.EpiphanInput:unset")
+    def unset(task, pk, name):
+        ep = Epiphan.objects.get(pk=pk)
+        try:
+            resp = ep.session.post(
+                ep.url.path("admin/sources").add_path_segment(name).as_string(),
+                data={
+                    "pfd_form_id": "vsource",
+                    "deinterlacing": "",
+                    "nosignal_src": "",
+                    "nosignal_timeout": ""
+                }
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Could not unset {name} on {ep}: {e}")
+        else:
+            logger.debug(f"Unset {name} on {ep}")
+        finally:
+            resp.close()
+
+
+class EpiphanMediaTasks:
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.EpiphanMedia:upload")
+    def upload(task, pk):
+        em = EpiphanMedia.objects.get(pk=pk)
+        try:
+            resp = em.epiphan.session.post(
+                em.epiphan.url.path("admin/media").as_string(),
+                files={"1": (em.name, em.image.open('rb'))}
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Could not upload {em} to {em.epiphan}: {e}")
+        else:
+            logger.debug(f"Uploaded {em} to {em.epiphan}")
+        finally:
+            resp.close()
+
+    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.EpiphanMedia:remove")
+    def remove(task, pk, name):
+        ep = Epiphan.objects.get(pk=pk)
+        try:
+            resp = ep.session.delete(
+                ep.url.path("api/media/files").add_path_segment(name).as_string()
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Could not remove {name} from {ep}: {e}")
+        else:
+            logger.debug(f"Uploaded {name} to {ep}")
+        finally:
+            resp.close()
 
 
 class ExportTasks:

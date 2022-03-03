@@ -348,6 +348,55 @@ class EpiphanSource(models.Model):
         return "{s.epiphan}, {s.number}".format(s=self)
 
 
+@signal_connect
+class EpiphanInput(models.Model):
+    epiphan = models.ForeignKey("Epiphan", on_delete=models.CASCADE)
+    name = models.CharField(max_length=64)
+    nosignal_src = models.ForeignKey("EpiphanMedia", on_delete=models.CASCADE, null=True, blank=True)
+    nosignal_timeout = models.PositiveSmallIntegerField(null=True, blank=True)
+    deinterlacing = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.name
+
+    def post_save(self, *args, **kwargs):
+        from .tasks import EpiphanInputTasks
+        if self.nosignal_src:
+            EpiphanInputTasks().set.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
+        else:
+            EpiphanInputTasks().unset.apply_async((self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE)
+
+    def pre_delete(self, *args, **kwargs):
+        if self.nosignal_src:
+            from .tasks import EpiphanInputTasks
+            EpiphanInputTasks().unset.apply_async((self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE)
+
+
+@signal_connect
+class EpiphanMedia(models.Model):
+    epiphan = models.ForeignKey("Epiphan", on_delete=models.CASCADE)
+    name = models.CharField(max_length=64)
+    image = models.ImageField(
+        upload_to=Uuid4Upload,
+    )
+
+    def __str__(self):
+        return self.name
+
+    def pre_save(self, *args, **kwargs):
+        self.name = self.image.name
+
+    def post_save(self, *args, **kwargs):
+        from .tasks import EpiphanMediaTasks
+        EpiphanMediaTasks().upload.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
+
+    def pre_delete(self, *args, **kwargs):
+        if self.image:
+            from .tasks import EpiphanMediaTasks
+            EpiphanMediaTasks().remove.apply_async((self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE)
+            self.image.delete(False)
+
+
 class Input(PolymorphicModel):
     name = models.CharField(max_length=128, blank=False, null=False)
 

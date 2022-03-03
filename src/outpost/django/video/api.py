@@ -21,6 +21,8 @@ from .serializers import (
     EpiphanChannelSerializer,
     EpiphanSerializer,
     EpiphanSourceSerializer,
+    EpiphanMediaSerializer,
+    EpiphanInputSerializer,
     ExportClassSerializer,
     LiveChannelSerializer,
     LiveTemplateSceneSerializer,
@@ -35,6 +37,8 @@ from .models import (  # Broadcast,; EventAudio,; EventMedia,; EventVideo,; Publ
     Epiphan,
     EpiphanChannel,
     EpiphanSource,
+    EpiphanMedia,
+    EpiphanInput,
     Export,
     Recorder,
     Recording,
@@ -141,6 +145,20 @@ class EpiphanChannelViewSet(ModelViewSet):
 class EpiphanSourceViewSet(ModelViewSet):
     queryset = EpiphanSource.objects.all()
     serializer_class = EpiphanSourceSerializer
+    permission_classes = (ExtendedDjangoModelPermissions,)
+    filter_fields = ("epiphan",)
+
+
+class EpiphanMediaViewSet(ModelViewSet):
+    queryset = EpiphanMedia.objects.all()
+    serializer_class = EpiphanMediaSerializer
+    permission_classes = (ExtendedDjangoModelPermissions,)
+    filter_fields = ("epiphan",)
+
+
+class EpiphanInputViewSet(ModelViewSet):
+    queryset = EpiphanInput.objects.all()
+    serializer_class = EpiphanInputSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ("epiphan",)
 
