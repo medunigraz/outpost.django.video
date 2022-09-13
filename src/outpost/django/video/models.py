@@ -673,7 +673,7 @@ class LivePortal(models.Model):
             logger.error(f"Failed to notify {self} of event {event} start: {e}")
 
 
-class LiveChannel(models.Model):
+class LiveChannel(OrderedModel):
     id = ShortUUIDField(primary_key=True)
     name = models.CharField(max_length=512)
     enabled = models.BooleanField(default=False)

@@ -9,6 +9,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import ngettext
 from django.utils.translation import ugettext_lazy as _
+from ordered_model.admin import OrderedModelAdmin
 from outpost.django.base.admin import NotificationInlineAdmin
 
 from . import models
@@ -137,8 +138,8 @@ class LivePortalAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.LiveChannel)
-class LiveChannelAdmin(admin.ModelAdmin):
-    list_display = ("name", "pk", "enabled")
+class LiveChannelAdmin(OrderedModelAdmin):
+    list_display = ("name", "pk", "enabled", "move_up_down_links")
     list_filter = ("enabled",)
 
 
