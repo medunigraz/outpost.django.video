@@ -4,7 +4,10 @@ import logging
 import math
 import re
 import subprocess
-from functools import partial, reduce
+from functools import (
+    partial,
+    reduce,
+)
 from math import ceil
 from typing import Callable
 
@@ -12,8 +15,15 @@ import boto3
 import requests
 from dateutil.relativedelta import relativedelta
 from django.utils.translation import gettext_lazy as _
-from more_itertools import chunked, divide, split_after
-from webvtt import Caption, WebVTT
+from more_itertools import (
+    chunked,
+    divide,
+    split_after,
+)
+from webvtt import (
+    Caption,
+    WebVTT,
+)
 
 from .conf import settings
 

@@ -3,9 +3,13 @@
 from __future__ import unicode_literals
 
 import django.contrib.postgres.fields.jsonb
-from django.db import migrations, models
 import django.db.models.deletion
 import django_extensions.db.fields
+from django.db import (
+    migrations,
+    models,
+)
+
 from ...base.utils import Uuid4Upload
 
 

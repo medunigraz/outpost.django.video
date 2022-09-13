@@ -21,7 +21,12 @@ from tenacity import (
 from tqdm import tqdm
 
 from ...models import TranscribeLanguage
-from ...utils import FFProbeProcess, TranscribeException, TranscribeMixin, json2vtt
+from ...utils import (
+    FFProbeProcess,
+    TranscribeException,
+    TranscribeMixin,
+    json2vtt,
+)
 
 logger = logging.getLogger(__name__)
 

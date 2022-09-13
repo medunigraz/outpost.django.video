@@ -13,7 +13,10 @@ from urllib.parse import urljoin
 import requests
 import streamlink
 from bs4 import BeautifulSoup
-from celery import shared_task, states
+from celery import (
+    shared_task,
+    states,
+)
 from celery.exceptions import Ignore
 from celery.schedules import crontab
 from django.contrib.sites.models import Site
@@ -24,7 +27,11 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from outpost.django.base.tasks import MaintainanceTaskMixin
 from outpost.django.base.utils import Process
-from outpost.django.campusonline.models import Course, CourseGroupTerm, Person
+from outpost.django.campusonline.models import (
+    Course,
+    CourseGroupTerm,
+    Person,
+)
 from outpost.django.campusonline.serializers import (
     CourseSerializer,
     PersonSerializer,
@@ -36,24 +43,23 @@ from requests.auth import HTTPBasicAuth
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .conf import settings
-from .utils import (
-    FFMPEGSilenceHandler,
-    FFProbeProcess,
-    TranscribeException,
-    TranscribeMixin,
-)
-
 from .models import (  # EventAudio,; EventVideo,
     Epiphan,
     EpiphanInput,
     EpiphanMedia,
     EpiphanSource,
     Export,
+    LiveDeliveryServer,
+    LiveEvent,
+    LiveViewer,
     Recorder,
     Recording,
-    LiveEvent,
-    LiveDeliveryServer,
-    LiveViewer,
+)
+from .utils import (
+    FFMPEGSilenceHandler,
+    FFProbeProcess,
+    TranscribeException,
+    TranscribeMixin,
 )
 
 logger = logging.getLogger(__name__)
@@ -337,7 +343,7 @@ class EpiphanTasks:
         sources = EpiphanSource.objects.filter(
             epiphan__enabled=True, epiphan__online=True
         )
-        logger.info(f"Updating {sources.count()} sources.")
+        logger.debug(f"Updating {sources.count()} sources.")
         queue = task.request.delivery_info.get("routing_key")
 
         for s in sources:
@@ -350,7 +356,7 @@ class EpiphanTasks:
     )
     def preview_video(task, pk):
         source = EpiphanSource.objects.get(pk=pk)
-        logger.info(f"Epiphan source video preview: {source}")
+        logger.debug(f"Epiphan source video preview: {source}")
         source.generate_video_preview()
 
     @shared_task(
@@ -358,32 +364,33 @@ class EpiphanTasks:
     )
     def preview_audio(task, pk):
         source = EpiphanSource.objects.get(pk=pk)
-        logger.info(f"Epiphan source audio waveform: {source}")
+        logger.debug(f"Epiphan source audio waveform: {source}")
         source.generate_audio_waveform()
 
     @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:reboot")
     def reboot(task):
         epiphans = Epiphan.objects.filter(enabled=True, online=True)
-        logger.info(f"Rebooting Epiphans: {epiphans.count()}")
+        logger.warning(f"Rebooting Epiphans: {epiphans.count()}")
 
         for e in epiphans:
             e.reboot()
 
 
 class EpiphanInputTasks:
-
     @shared_task(bind=True, ignore_result=False, name=f"{__name__}.EpiphanInput:set")
     def set(task, pk):
         ei = EpiphanInput.objects.get(pk=pk)
         try:
             resp = ei.epiphan.session.post(
-                ei.epiphan.url.path("admin/sources").add_path_segment(ei.name).as_string(),
+                ei.epiphan.url.path("admin/sources")
+                .add_path_segment(ei.name)
+                .as_string(),
                 data={
                     "pfd_form_id": "vsource",
                     "deinterlacing": "on" if ei.deinterlacing else "",
                     "nosignal_src": ei.nosignal_src.name,
-                    "nosignal_timeout": ei.nosignal_timeout or ""
-                }
+                    "nosignal_timeout": ei.nosignal_timeout or "",
+                },
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -403,8 +410,8 @@ class EpiphanInputTasks:
                     "pfd_form_id": "vsource",
                     "deinterlacing": "",
                     "nosignal_src": "",
-                    "nosignal_timeout": ""
-                }
+                    "nosignal_timeout": "",
+                },
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -416,14 +423,13 @@ class EpiphanInputTasks:
 
 
 class EpiphanMediaTasks:
-
     @shared_task(bind=True, ignore_result=False, name=f"{__name__}.EpiphanMedia:upload")
     def upload(task, pk):
         em = EpiphanMedia.objects.get(pk=pk)
         try:
             resp = em.epiphan.session.post(
                 em.epiphan.url.path("admin/media").as_string(),
-                files={"1": (em.name, em.image.open('rb'))}
+                files={"1": (em.name, em.image.open("rb"))},
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -491,7 +497,10 @@ class ExportTasks:
 
 class TranscribeTask(TranscribeMixin):
     def run(self, pk, **kwargs):
-        from .models import TranscribeLanguage, Event
+        from .models import (
+            Event,
+            TranscribeLanguage,
+        )
 
         if "language" in kwargs:
             lang = TranscribeLanguage.objects.get(code=kwargs.get("lanugage"))
@@ -530,7 +539,10 @@ class TranscribeResultTask(TranscribeMixin):
     max_retries = 120
 
     def run(self, job, pk, **kwargs):
-        from .models import Transcript, Event
+        from .models import (
+            Event,
+            Transcript,
+        )
 
         logger.debug(f"Fetching transcription result for {pk} from {job}")
         event = Event.objects.get(pk=pk)
@@ -740,7 +752,9 @@ class LiveEventTasks:
             if not le.job.is_alive():
                 le.stop()
 
-    @shared_task(bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:ready_to_publish")
+    @shared_task(
+        bind=True, ignore_result=False, name=f"{__name__}.LiveEvent:ready_to_publish"
+    )
     def ready_to_publish(task, pk):
         le = LiveEvent.objects.get(pk=pk)
         if le.end:

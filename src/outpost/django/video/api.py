@@ -1,28 +1,48 @@
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from guardian.shortcuts import get_objects_for_user
+from outpost.django.api.permissions import ExtendedDjangoModelPermissions
 from outpost.django.base.decorators import docstring_format
 from rest_flex_fields.views import FlexFieldsMixin
 from rest_framework.decorators import action
-from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.generics import (
+    ListAPIView,
+    RetrieveAPIView,
+)
 from rest_framework.permissions import (
     DjangoModelPermissions,
     DjangoModelPermissionsOrAnonReadOnly,
 )
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
-
-from outpost.django.api.permissions import ExtendedDjangoModelPermissions
+from rest_framework.viewsets import (
+    GenericViewSet,
+    ModelViewSet,
+    ReadOnlyModelViewSet,
+)
 
 from .conf import settings
+from .models import (  # Broadcast,; EventAudio,; EventMedia,; EventVideo,; Publish,; Stream,; Token,
+    Epiphan,
+    EpiphanChannel,
+    EpiphanInput,
+    EpiphanMedia,
+    EpiphanSource,
+    Export,
+    LiveChannel,
+    LiveTemplate,
+    LiveTemplateScene,
+    Recorder,
+    Recording,
+    RecordingAsset,
+)
 from .permissions import EpiphanChannelPermissions
 from .serializers import (
     EpiphanChannelSerializer,
+    EpiphanInputSerializer,
+    EpiphanMediaSerializer,
     EpiphanSerializer,
     EpiphanSourceSerializer,
-    EpiphanMediaSerializer,
-    EpiphanInputSerializer,
     ExportClassSerializer,
     LiveChannelSerializer,
     LiveTemplateSceneSerializer,
@@ -32,21 +52,6 @@ from .serializers import (
     RecordingSerializer,
 )
 from .tasks import ExportTasks
-
-from .models import (  # Broadcast,; EventAudio,; EventMedia,; EventVideo,; Publish,; Stream,; Token,
-    Epiphan,
-    EpiphanChannel,
-    EpiphanSource,
-    EpiphanMedia,
-    EpiphanInput,
-    Export,
-    Recorder,
-    Recording,
-    RecordingAsset,
-    LiveChannel,
-    LiveTemplate,
-    LiveTemplateScene,
-)
 
 
 class ExportClassViewSet(ListAPIView, RetrieveAPIView, GenericViewSet):
@@ -79,7 +84,7 @@ class ExportClassViewSet(ListAPIView, RetrieveAPIView, GenericViewSet):
         recording = request.data.get("recording")
         task = ExportTasks.create.apply_async(
             (recording, exporter, request.build_absolute_uri("/")),
-            queue=settings.VIDEO_CELERY_QUEUE
+            queue=settings.VIDEO_CELERY_QUEUE,
         )
         result = {"task": task.id}
         return Response(result)

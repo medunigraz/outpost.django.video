@@ -1,5 +1,8 @@
 from outpost.django.api.serializers import Base64FileField
-from outpost.django.campusonline.serializers import CourseSerializer, PersonSerializer
+from outpost.django.campusonline.serializers import (
+    CourseSerializer,
+    PersonSerializer,
+)
 from outpost.django.geo.serializers import RoomSerializer
 from rest_flex_fields import FlexFieldsModelSerializer
 from rest_framework import serializers
@@ -38,14 +41,12 @@ class EpiphanChannelSerializer(serializers.ModelSerializer):
 
 
 class EpiphanMediaSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = models.EpiphanMedia
         fields = "__all__"
 
 
 class EpiphanInputSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = models.EpiphanInput
         fields = "__all__"

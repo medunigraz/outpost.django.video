@@ -1,10 +1,14 @@
 from django.conf.urls import url
-from django.contrib import admin, messages
+from django.contrib import (
+    admin,
+    messages,
+)
 from django.http import HttpResponse
-from django.utils.safestring import mark_safe
-from django.utils.translation import ugettext_lazy as _, ngettext
-from django.utils.html import format_html
 from django.urls import reverse
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
+from django.utils.translation import ngettext
+from django.utils.translation import ugettext_lazy as _
 from outpost.django.base.admin import NotificationInlineAdmin
 
 from . import models
@@ -58,7 +62,7 @@ class ServerAdmin(admin.ModelAdmin):
     def fingerprint(self, obj):
         return mark_safe("<code>{}</code>".format(obj.fingerprint()))
 
-    fingerprint.short_description = u"SSH host key fingerprint"
+    fingerprint.short_description = "SSH host key fingerprint"
 
 
 @admin.register(models.Epiphan)
@@ -85,12 +89,12 @@ class EpiphanAdmin(admin.ModelAdmin):
     def fingerprint(self, obj):
         return mark_safe("<code>{}</code>".format(obj.fingerprint()))
 
-    fingerprint.short_description = u"SSH public key fingerprint"
+    fingerprint.short_description = "SSH public key fingerprint"
 
     def private_key(self, obj):
         return mark_safe("<pre>{}</pre>".format(obj.private_key()))
 
-    private_key.short_description = u"SSH private key"
+    private_key.short_description = "SSH private key"
 
 
 # class EventInlineAdmin(admin.TabularInline):
@@ -177,14 +181,14 @@ class LiveTemplateSceneAdmin(admin.ModelAdmin):
                 self.message_user(
                     request,
                     _("Live event {} was started.").format(le),
-                    messages.SUCCESS
+                    messages.SUCCESS,
                 )
             else:
                 le.stop()
                 self.message_user(
                     request,
                     _("Live event {} failed to start.").format(le),
-                    messages.ERROR
+                    messages.ERROR,
                 )
 
     public.short_description = _("Start new public live events")
@@ -196,14 +200,14 @@ class LiveTemplateSceneAdmin(admin.ModelAdmin):
                 self.message_user(
                     request,
                     _("Live event {} was started.").format(le),
-                    messages.SUCCESS
+                    messages.SUCCESS,
                 )
             else:
                 le.stop()
                 self.message_user(
                     request,
                     _("Live event {} failed to start.").format(le),
-                    messages.ERROR
+                    messages.ERROR,
                 )
 
     private.short_description = _("Start new private live events")
@@ -225,7 +229,7 @@ class LiveEventAdmin(admin.ModelAdmin):
     date_hierarchy = "begin"
     inlines = (LiveStreamInline, LiveViewerInline)
     actions = ("start", "stop")
-    readonly_fields = ('statistics_link',)
+    readonly_fields = ("statistics_link",)
 
     def start(self, request, queryset):
         for e in queryset.all():
@@ -242,22 +246,26 @@ class LiveEventAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         urls += [
-            url(r'^statistics/(?P<pk>\w+)$', self.statistics_file,
-                name='video_liveevent_statistics'),
+            url(
+                r"^statistics/(?P<pk>\w+)$",
+                self.statistics_file,
+                name="video_liveevent_statistics",
+            ),
         ]
         return urls
 
     def statistics_link(self, obj):
         return format_html(
             '<a href="{}">XLSX</a>',
-            reverse('admin:video_liveevent_statistics', args=[obj.pk])
+            reverse("admin:video_liveevent_statistics", args=[obj.pk]),
         )
+
     statistics_link.short_description = "Statistics"
 
     def statistics_file(self, request, pk):
         response = HttpResponse()
         le = models.LiveEvent.objects.get(pk=pk)
         mt = le.excel(response)
-        response['Content-Type'] = mt
-        response['Content-Disposition'] = f'attachment; filename="{le.pk}.xlsx"'
+        response["Content-Type"] = mt
+        response["Content-Disposition"] = f'attachment; filename="{le.pk}.xlsx"'
         return response

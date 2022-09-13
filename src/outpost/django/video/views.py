@@ -1,14 +1,29 @@
 import logging
 
-from braces.views import CsrfExemptMixin, JSONResponseMixin
+from braces.views import (
+    CsrfExemptMixin,
+    JSONResponseMixin,
+)
 from django.contrib.auth.decorators import permission_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse, HttpResponseNotFound
-from django.shortcuts import get_list_or_404, get_object_or_404
-from django.template import Context, Template
+from django.http import (
+    HttpResponse,
+    HttpResponseNotFound,
+)
+from django.shortcuts import (
+    get_list_or_404,
+    get_object_or_404,
+)
+from django.template import (
+    Context,
+    Template,
+)
 from django.utils.decorators import method_decorator
 from django.utils.translation import ugettext_lazy as _
-from django.views.generic import View
+from django.views.generic import (
+    DetailView,
+    View,
+)
 from outpost.django.base.mixins import HttpBasicAuthMixin
 
 from . import models
@@ -16,7 +31,9 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
-class LiveRoom(CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, View):
+class LiveRoom(
+    CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, JSONResponseMixin, View
+):
     def get(self, request, template_id, **kwargs):
         try:
             room = models.LiveTemplate.objects.get(pk=template_id)
@@ -34,7 +51,12 @@ class LiveRoom(CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, View):
         )
         event = scene.instantiate(public)
         if not event.start():
-            return HttpResponse(_("Maximum number of parallel transmissions reached - Live stream could not be started"), status=503)
+            return HttpResponse(
+                _(
+                    "Maximum number of parallel transmissions reached - Live stream could not be started"
+                ),
+                status=503,
+            )
         return HttpResponse()
 
     @method_decorator(

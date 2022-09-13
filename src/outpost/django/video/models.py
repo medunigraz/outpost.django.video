@@ -6,12 +6,21 @@ import subprocess
 from base64 import b64encode
 from collections import Counter
 from datetime import timedelta
-from functools import lru_cache, partial, reduce
+from functools import (
+    lru_cache,
+    partial,
+    reduce,
+)
 from hashlib import sha256
 from math import ceil
-from tempfile import NamedTemporaryFile, TemporaryDirectory
-from tenacity import Retrying, RetryError, stop_after_attempt, wait_fixed
-from zipfile import ZipFile, ZIP_DEFLATED
+from tempfile import (
+    NamedTemporaryFile,
+    TemporaryDirectory,
+)
+from zipfile import (
+    ZIP_DEFLATED,
+    ZipFile,
+)
 
 import asyncssh
 import certifi
@@ -162,7 +171,9 @@ class Epiphan(Recorder):
         if self.provision:
             from .tasks import EpiphanTasks
 
-            EpiphanTasks.provision.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
+            EpiphanTasks.provision.apply_async(
+                (self.pk,), queue=settings.VIDEO_CELERY_QUEUE
+            )
 
     def reboot(self):
         url = self.url.path("admin/reboot.cgi").as_string()
@@ -352,7 +363,9 @@ class EpiphanSource(models.Model):
 class EpiphanInput(models.Model):
     epiphan = models.ForeignKey("Epiphan", on_delete=models.CASCADE)
     name = models.CharField(max_length=64)
-    nosignal_src = models.ForeignKey("EpiphanMedia", on_delete=models.CASCADE, null=True, blank=True)
+    nosignal_src = models.ForeignKey(
+        "EpiphanMedia", on_delete=models.CASCADE, null=True, blank=True
+    )
     nosignal_timeout = models.PositiveSmallIntegerField(null=True, blank=True)
     deinterlacing = models.BooleanField(default=False)
 
@@ -361,15 +374,23 @@ class EpiphanInput(models.Model):
 
     def post_save(self, *args, **kwargs):
         from .tasks import EpiphanInputTasks
+
         if self.nosignal_src:
-            EpiphanInputTasks().set.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
+            EpiphanInputTasks().set.apply_async(
+                (self.pk,), queue=settings.VIDEO_CELERY_QUEUE
+            )
         else:
-            EpiphanInputTasks().unset.apply_async((self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE)
+            EpiphanInputTasks().unset.apply_async(
+                (self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE
+            )
 
     def pre_delete(self, *args, **kwargs):
         if self.nosignal_src:
             from .tasks import EpiphanInputTasks
-            EpiphanInputTasks().unset.apply_async((self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE)
+
+            EpiphanInputTasks().unset.apply_async(
+                (self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE
+            )
 
 
 @signal_connect
@@ -388,12 +409,18 @@ class EpiphanMedia(models.Model):
 
     def post_save(self, *args, **kwargs):
         from .tasks import EpiphanMediaTasks
-        EpiphanMediaTasks().upload.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
+
+        EpiphanMediaTasks().upload.apply_async(
+            (self.pk,), queue=settings.VIDEO_CELERY_QUEUE
+        )
 
     def pre_delete(self, *args, **kwargs):
         if self.image:
             from .tasks import EpiphanMediaTasks
-            EpiphanMediaTasks().remove.apply_async((self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE)
+
+            EpiphanMediaTasks().remove.apply_async(
+                (self.epiphan.pk, self.name), queue=settings.VIDEO_CELERY_QUEUE
+            )
             self.image.delete(False)
 
 
@@ -406,7 +433,9 @@ class PanasonicCamera(NetworkedDeviceMixin, Input):
 
 
 @signal_connect
-class Recording(ExportModelOperationsMixin("video.Recording"), TimeStampedModel, PolymorphicModel):
+class Recording(
+    ExportModelOperationsMixin("video.Recording"), TimeStampedModel, PolymorphicModel
+):
     recorder = models.ForeignKey(
         "Recorder", null=True, blank=True, on_delete=models.SET_NULL
     )
@@ -496,7 +525,9 @@ class RecordingAsset(TimeStampedModel):
         self.preview.delete(False)
 
 
-class Export(ExportModelOperationsMixin("video.Export"), TimeStampedModel, PolymorphicModel):
+class Export(
+    ExportModelOperationsMixin("video.Export"), TimeStampedModel, PolymorphicModel
+):
     recording = models.ForeignKey("Recording", on_delete=models.CASCADE)
 
 
@@ -711,9 +742,12 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
 
     def start(self):
         from .tasks import LiveEventTasks
+
         self.started = timezone.now()
         self.save()
-        for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(pk=self.pk):
+        for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(
+            pk=self.pk
+        ):
             logger.warning(f"Stopping active LiveEvent {le} ahead of starting {self}")
             le.stop()
         if not self.job:
@@ -738,18 +772,17 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         # Set transcoder id on delivery servers
         for ds in self.delivery.all():
             ds.redis.set(
-                f"HLS/Event/{self.pk}",
-                self.job.worker.properties.get("transcoder-id")
+                f"HLS/Event/{self.pk}", self.job.worker.properties.get("transcoder-id")
             )
-        #transaction.commit()
-        #task = LiveEventTasks.ready_to_publish.apply_async(
+        # transaction.commit()
+        # task = LiveEventTasks.ready_to_publish.apply_async(
         #    (self.pk,),
         #    queue=settings.VIDEO_CELERY_QUEUE
-        #)
-        #task.wait(60)
+        # )
+        # task.wait(60)
         retry = Retrying(
             stop=stop_after_attempt(settings.VIDEO_LIVE_STARTUP_ATTEMPTS),
-            wait=wait_fixed(settings.VIDEO_LIVE_STARTUP_WAIT)
+            wait=wait_fixed(settings.VIDEO_LIVE_STARTUP_WAIT),
         )
         try:
             for attempt in retry:
@@ -761,7 +794,9 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                                 url = ls.viewer(viewer=v)
                                 streamlink.streams(url)
                         except streamlink.StreamlinkError as e:
-                            logger.warn(f"Stream {ls} not ready after {attempt.retry_state.attempt_number}: {e}")
+                            logger.warn(
+                                f"Stream {ls} not ready after {attempt.retry_state.attempt_number}: {e}"
+                            )
                             raise e
                         finally:
                             v.disable()
@@ -795,7 +830,9 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                 logger.warn(f"Could not stop job for {self}")
         self.save()
         transaction.on_commit(
-            lambda: LiveEventTasks.cleanup.apply_async((self.pk,), queue=settings.VIDEO_CELERY_QUEUE)
+            lambda: LiveEventTasks.cleanup.apply_async(
+                (self.pk,), queue=settings.VIDEO_CELERY_QUEUE
+            )
         )
 
     def viewer(self, request):
@@ -820,35 +857,34 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         return data
 
     def viewer_count(self):
-        return max(
-            [
-                s.viewer_count()
-                for s in self.livestream_set.all()
-            ]
-        )
+        return max([s.viewer_count() for s in self.livestream_set.all()])
 
     def excel(self, output):
         wb = Workbook()
         wb.active.title = str(self.title)
-        wb.active.append((
-            ugettext("Viewer-ID"),
-            ugettext("Delivery-URL"),
-            ugettext("Stream Type"),
-            ugettext("Timestamp"),
-            ugettext("Variant"),
-        ))
+        wb.active.append(
+            (
+                ugettext("Viewer-ID"),
+                ugettext("Delivery-URL"),
+                ugettext("Stream Type"),
+                ugettext("Timestamp"),
+                ugettext("Variant"),
+            )
+        )
         for lv in self.liveviewer_set.all():
             for sid, timestamps in lv.statistics.items():
                 ls = self.livestream_set.get(pk=sid)
                 for ts, variant in timestamps.items():
-                    wb.active.append((
-                        lv.pk,
-                        str(lv.delivery),
-                        ls.type,
-                        ts,
-                        variant,
-                    ))
-        archive = ZipFile(output, 'w', ZIP_DEFLATED, allowZip64=True)
+                    wb.active.append(
+                        (
+                            lv.pk,
+                            str(lv.delivery),
+                            ls.type,
+                            ts,
+                            variant,
+                        )
+                    )
+        archive = ZipFile(output, "w", ZIP_DEFLATED, allowZip64=True)
         writer = ExcelWriter(wb, archive)
         writer.save()
         return wb.mime_type
@@ -901,7 +937,9 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
     def post_save(self, *args, **kwargs):
         if not self.event.end:
             self.delivery.redis.setex(
-                f"HLS/Viewer/{self.pk}", settings.VIDEO_LIVE_VIEWER_LIFETIME, self.event.pk
+                f"HLS/Viewer/{self.pk}",
+                settings.VIDEO_LIVE_VIEWER_LIFETIME,
+                self.event.pk,
             )
 
     def disable(self):
@@ -913,8 +951,12 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
         strp = timezone.datetime.strptime
         self.statistics = {
             s.pk: {
-                strp(ts.decode(), fmt).replace(tzinfo=tz).isoformat(): str(s.variants.all()[int(sid.decode())])
-                for ts, sid in self.delivery.redis.hgetall(f"HLS/Viewer/{self.pk}/{s.pk}").items()
+                strp(ts.decode(), fmt)
+                .replace(tzinfo=tz)
+                .isoformat(): str(s.variants.all()[int(sid.decode())])
+                for ts, sid in self.delivery.redis.hgetall(
+                    f"HLS/Viewer/{self.pk}/{s.pk}"
+                ).items()
             }
             for s in self.event.livestream_set.prefetch_related("variants").all()
         }
@@ -963,10 +1005,10 @@ class LiveStream(models.Model):
 
     @memoize(timeout=30)
     def viewer_count(self):
-        now = timezone.now().astimezone(
-            settings.VIDEO_LIVE_DELIVERY_NOW_TIMEZONE
-        ).strftime(
-            settings.VIDEO_LIVE_DELIVERY_NOW_FORMAT
+        now = (
+            timezone.now()
+            .astimezone(settings.VIDEO_LIVE_DELIVERY_NOW_TIMEZONE)
+            .strftime(settings.VIDEO_LIVE_DELIVERY_NOW_FORMAT)
         )
         return sum(
             [
@@ -1019,8 +1061,8 @@ class LiveTemplateScene(models.Model):
         context = Context({"scene": self, "campusonline": None})
         if self.template.room:
             from outpost.django.campusonline.serializers import (
-                PersonSerializer,
                 CourseSerializer,
+                PersonSerializer,
             )
 
             cgt = (

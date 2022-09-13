@@ -6,7 +6,11 @@ from pathlib import Path
 from django.core.files.base import File
 from django.core.management.base import BaseCommand
 
-from ...models import Epiphan, EpiphanChannel, EpiphanRecording
+from ...models import (
+    Epiphan,
+    EpiphanChannel,
+    EpiphanRecording,
+)
 from ...tasks import RecordingTasks
 
 logger = logging.getLogger(__name__)

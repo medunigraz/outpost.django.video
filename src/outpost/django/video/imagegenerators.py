@@ -1,4 +1,7 @@
-from imagekit import ImageSpec, register
+from imagekit import (
+    ImageSpec,
+    register,
+)
 from imagekit.processors import ResizeToFit
 
 

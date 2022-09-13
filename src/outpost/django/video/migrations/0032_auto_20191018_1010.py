@@ -3,8 +3,11 @@
 from __future__ import unicode_literals
 
 import django.core.files.storage
-from django.db import migrations, models
 import outpost.django.base.utils
+from django.db import (
+    migrations,
+    models,
+)
 
 
 class Migration(migrations.Migration):
