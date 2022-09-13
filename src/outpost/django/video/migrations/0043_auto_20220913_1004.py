@@ -7,7 +7,7 @@ from django.db import (
 
 
 def set_initial_order(apps, schema_editor):
-    model = apps.get_model("video", "EpiphanChannel")
+    model = apps.get_model("video", "LiveChannel")
     for p, c in enumerate(model.objects.all()):
         c.order = p
         c.save()
