@@ -36,34 +36,72 @@ from django.core.cache import cache
 from django.core.files import File
 from django.core.files.storage import FileSystemStorage
 from django.core.validators import RegexValidator
-from django.db import models, transaction
-from django.template import Context, Template
+from django.db import (
+    models,
+    transaction,
+)
+from django.template import (
+    Context,
+    Template,
+)
 from django.template.loader import get_template
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _, ugettext
+from django.utils.encoding import force_str
+from django.utils.translation import ugettext
+from django.utils.translation import ugettext_lazy as _
 from django_extensions.db.fields import ShortUUIDField
 from django_extensions.db.models import TimeStampedModel
 from django_prometheus.models import ExportModelOperationsMixin
-from django_sshworker.models import Job, JobConstraint, Resource
+from django_sshworker.models import (
+    Job,
+    JobConstraint,
+    Resource,
+)
 from imagekit.models import ProcessedImageField
 from imagekit.processors import ResizeToFill
 from markupfield.fields import MarkupField
-from memoize import delete_memoized, memoize
-from more_itertools import chunked, divide, split_after
+from memoize import (
+    delete_memoized,
+    memoize,
+)
+from more_itertools import (
+    chunked,
+    divide,
+    split_after,
+)
+from openpyxl import Workbook
+from openpyxl.writer.excel import ExcelWriter
 from ordered_model.models import OrderedModel
 from outpost.django.base.decorators import signal_connect
 from outpost.django.base.models import NetworkedDeviceMixin
-from outpost.django.base.utils import Process, Uuid4Upload
-from outpost.django.base.validators import RedisURLValidator, UnitValidator
-from outpost.django.campusonline.models import Course, CourseGroupTerm, Person
+from outpost.django.base.utils import (
+    Process,
+    Uuid4Upload,
+)
+from outpost.django.base.validators import (
+    RedisURLValidator,
+    UnitValidator,
+)
+from outpost.django.campusonline.models import (
+    Course,
+    CourseGroupTerm,
+    Person,
+)
 from PIL import Image
 from polymorphic.models import PolymorphicModel
 from purl import URL
-from openpyxl import Workbook
-from openpyxl.writer.excel import ExcelWriter
 from redis import Redis
-from webvtt import Caption, WebVTT
+from tenacity import (
+    RetryError,
+    Retrying,
+    stop_after_attempt,
+    wait_fixed,
+)
+from webvtt import (
+    Caption,
+    WebVTT,
+)
 
 from .conf import settings
 from .utils import FFMPEGProgressHandler
