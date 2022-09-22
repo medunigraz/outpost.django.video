@@ -127,14 +127,14 @@ class RecordingAssetViewSet(ModelViewSet):
 
 
 class EpiphanViewSet(ModelViewSet):
-    queryset = Epiphan.objects.all()
+    queryset = Epiphan.objects.filter(enabled=True)
     serializer_class = EpiphanSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ()
 
 
 class EpiphanChannelViewSet(ModelViewSet):
-    queryset = EpiphanChannel.objects.all()
+    queryset = EpiphanChannel.objects.filter(epiphan__enabled=True)
     serializer_class = EpiphanChannelSerializer
     permission_classes = (EpiphanChannelPermissions,)
     filter_fields = ("epiphan",)
@@ -148,21 +148,21 @@ class EpiphanChannelViewSet(ModelViewSet):
 
 
 class EpiphanSourceViewSet(ModelViewSet):
-    queryset = EpiphanSource.objects.all()
+    queryset = EpiphanSource.objects.filter(epiphan__enabled=True)
     serializer_class = EpiphanSourceSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ("epiphan",)
 
 
 class EpiphanMediaViewSet(ModelViewSet):
-    queryset = EpiphanMedia.objects.all()
+    queryset = EpiphanMedia.objects.filter(epiphan__enabled=True)
     serializer_class = EpiphanMediaSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ("epiphan",)
 
 
 class EpiphanInputViewSet(ModelViewSet):
-    queryset = EpiphanInput.objects.all()
+    queryset = EpiphanInput.objects.filter(epiphan__enabled=True)
     serializer_class = EpiphanInputSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
     filter_fields = ("epiphan",)
