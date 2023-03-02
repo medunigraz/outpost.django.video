@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import re
 import sys
 from datetime import datetime
@@ -135,6 +136,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
     @log
     def close(self, rec):
+        os.chmod(rec.online.path, settings.FILE_UPLOAD_PERMISSIONS)
         logger.info("Finished file: {}".format(rec.online.path))
         if not rec.online.file.closed:
             rec.online.file.close()
