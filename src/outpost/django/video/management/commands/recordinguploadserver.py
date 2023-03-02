@@ -4,18 +4,32 @@ import os
 import re
 import sys
 from datetime import datetime
-from functools import partial, wraps
+from functools import (
+    partial,
+    wraps,
+)
 from pathlib import Path
 
 import asyncssh
-from celery import chain, group
+from celery import (
+    chain,
+    group,
+)
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from ...conf import settings
-from ...models import Epiphan, EpiphanChannel, EpiphanRecording, Server
-from ...tasks import AuphonicTasks, RecordingTasks
+from ...models import (
+    Epiphan,
+    EpiphanChannel,
+    EpiphanRecording,
+    Server,
+)
+from ...tasks import (
+    AuphonicTasks,
+    RecordingTasks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -144,18 +158,32 @@ class SFTPServer(asyncssh.SFTPServer):
         rec.save()
         logger.info("Starting post-upload task chain")
         tasks = [
-            RecordingTasks.process.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE),
-            RecordingTasks.metadata.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE),
+            RecordingTasks.process.signature(
+                (rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE
+            ),
+            RecordingTasks.metadata.signature(
+                (rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE
+            ),
         ]
         if rec.recorder.auphonic:
             tasks.extend(
                 [
-                    AuphonicTasks.process.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE),
-                    AuphonicTasks.retrieve.signature((rec.pk,), immutable=False, queue=settings.VIDEO_CELERY_QUEUE),
-                    RecordingTasks.process.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE),
+                    AuphonicTasks.process.signature(
+                        (rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE
+                    ),
+                    AuphonicTasks.retrieve.signature(
+                        (rec.pk,), immutable=False, queue=settings.VIDEO_CELERY_QUEUE
+                    ),
+                    RecordingTasks.process.signature(
+                        (rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE
+                    ),
                 ]
             )
-        tasks.append(RecordingTasks.notify.signature((rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE))
+        tasks.append(
+            RecordingTasks.notify.signature(
+                (rec.pk,), immutable=True, queue=settings.VIDEO_CELERY_QUEUE
+            )
+        )
         result = chain(*tasks).apply_async(queue=settings.VIDEO_CELERY_QUEUE)
         logger.info(f"Done starting post-upload task chain: {result.id}")
 
