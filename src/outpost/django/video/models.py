@@ -135,11 +135,17 @@ class Server(models.Model):
         self.key = pk.export_private_key()
 
     def ping(self):
-        cache.set("outpost-video-server-{}".format(str(self)), True, timeout=10)
+        try:
+            cache.set("outpost-video-server-{}".format(str(self)), True, timeout=10)
+        except Exception:
+            logger.error(f"Could not set active state for {self}")
 
     @property
     def active(self):
-        return cache.get("outpost-video-server-{}".format(str(self)), False)
+        try:
+            return cache.get("outpost-video-server-{}".format(str(self)), False)
+        except Exception:
+            return False
 
     def __str__(self):
         if self.hostname:
