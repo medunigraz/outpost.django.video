@@ -9,8 +9,14 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import ngettext
 from django.utils.translation import ugettext_lazy as _
+from guardian.admin import GuardedModelAdmin
+from guardian.shortcuts import get_objects_for_user
 from ordered_model.admin import OrderedModelAdmin
 from outpost.django.base.admin import NotificationInlineAdmin
+from outpost.django.base.guardian import (
+    GuardedModelAdminFilterMixin,
+    GuardedModelAdminObjectMixin,
+)
 
 from . import models
 
@@ -30,6 +36,18 @@ class EpiphanRecordingAdmin(admin.ModelAdmin):
     )
     list_filter = ("recorder", "ready")
     search_fields = ("presenter", "course", "title")
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        view = f"{qs.model._meta.app_label}.view_recorder"
+        change = f"{qs.model._meta.app_label}.change_recorder"
+        epiphans = get_objects_for_user(
+            request.user,
+            (view, change),
+            models.Epiphan.objects.all(),
+            accept_global_perms=True,
+        )
+        return qs.filter(recorder__in=epiphans)
 
 
 class RecordingAssetInlineAdmin(admin.TabularInline):
@@ -67,7 +85,9 @@ class ServerAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.Epiphan)
-class EpiphanAdmin(admin.ModelAdmin):
+class EpiphanAdmin(
+    GuardedModelAdminFilterMixin, GuardedModelAdminObjectMixin, GuardedModelAdmin
+):
     list_display = (
         "__str__",
         "hostname",

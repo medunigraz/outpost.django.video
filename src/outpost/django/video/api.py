@@ -1,7 +1,10 @@
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from guardian.shortcuts import get_objects_for_user
-from outpost.django.api.permissions import ExtendedDjangoModelPermissions
+from outpost.django.api.permissions import (
+    ExtendedDjangoModelPermissions,
+    ExtendedDjangoObjectPermissions,
+)
 from outpost.django.base.decorators import docstring_format
 from rest_flex_fields.views import FlexFieldsMixin
 from rest_framework.decorators import action
@@ -97,40 +100,75 @@ class RecorderViewSet(ModelViewSet):
     filter_fields = ()
 
     def get_queryset(self):
+        qs = super().get_queryset()
+        view = f"{qs.model._meta.app_label}.view_recorder"
+        change = f"{qs.model._meta.app_label}.change_recorder"
         return get_objects_for_user(
-            self.request.user, "video.view_recorder", klass=self.queryset
+            self.request.user,
+            (view, change),
+            klass=self.queryset,
+            accept_global_perms=True,
+            any_perm=True,
         )
 
 
 class RecordingViewSet(ModelViewSet):
     queryset = Recording.objects.all()
     serializer_class = RecordingSerializer
-    permission_classes = (ExtendedDjangoModelPermissions,)
+    permission_classes = (DjangoModelPermissions,)
     filter_fields = ("recorder",)
 
     def get_queryset(self):
-        return get_objects_for_user(
-            self.request.user, "video.view_recording", klass=self.queryset.model
-        ).filter(ready=True)
+        qs = super().get_queryset()
+        view = f"{qs.model._meta.app_label}.view_recorder"
+        change = f"{qs.model._meta.app_label}.change_recorder"
+        recorders = get_objects_for_user(
+            self.request.user,
+            (view, change),
+            Recorder.objects.all(),
+            accept_global_perms=True,
+            any_perm=True,
+        )
+        return qs.filter(ready=True, recorder__in=recorders)
 
 
 class RecordingAssetViewSet(ModelViewSet):
     queryset = RecordingAsset.objects.all()
     serializer_class = RecordingAssetSerializer
-    permission_classes = (ExtendedDjangoModelPermissions,)
+    permission_classes = (DjangoModelPermissions,)
     filter_fields = ("recording", "mimetype")
 
     def get_queryset(self):
-        return get_objects_for_user(
-            self.request.user, "video.view_recordingasset", klass=self.queryset.model
+        qs = super().get_queryset()
+        view = f"{qs.model._meta.app_label}.view_recorder"
+        change = f"{qs.model._meta.app_label}.change_recorder"
+        recorders = get_objects_for_user(
+            self.request.user,
+            (view, change),
+            Recorder.objects.all(),
+            accept_global_perms=True,
+            any_perm=True,
         )
+        return qs.filter(recording__recorder__in=recorders)
 
 
 class EpiphanViewSet(ModelViewSet):
-    queryset = Epiphan.objects.filter(enabled=True)
+    queryset = Recorder.objects.instance_of(Epiphan).filter(enabled=True)
     serializer_class = EpiphanSerializer
-    permission_classes = (ExtendedDjangoModelPermissions,)
+    permission_classes = (ExtendedDjangoObjectPermissions,)
     filter_fields = ()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        view = f"{qs.model._meta.app_label}.view_recorder"
+        change = f"{qs.model._meta.app_label}.change_recorder"
+        return get_objects_for_user(
+            self.request.user,
+            (view, change),
+            qs.non_polymorphic(),
+            accept_global_perms=True,
+            any_perm=True,
+        )
 
 
 class EpiphanChannelViewSet(ModelViewSet):
