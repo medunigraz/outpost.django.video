@@ -1,15 +1,14 @@
 #!/bin/python3
 # vim: ai:ts=4:sw=4:ft=python
 
-import os
-import sys
 import asyncio
-import signal
-import shutil
 import json
+import os
+import shutil
+import signal
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
-
 
 GPU = "{{ properties.gpuid }}"
 SEGMENT = "2"
