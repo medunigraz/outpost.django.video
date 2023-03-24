@@ -9,11 +9,11 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import ngettext
 from django.utils.translation import ugettext_lazy as _
-from guardian.admin import GuardedModelAdmin
 from guardian.shortcuts import get_objects_for_user
 from ordered_model.admin import OrderedModelAdmin
 from outpost.django.base.admin import NotificationInlineAdmin
 from outpost.django.base.guardian import (
+    GuardedModelAdminMixin,
     GuardedModelAdminFilterMixin,
     GuardedModelAdminObjectMixin,
 )
@@ -86,7 +86,7 @@ class ServerAdmin(admin.ModelAdmin):
 
 @admin.register(models.Epiphan)
 class EpiphanAdmin(
-    GuardedModelAdminFilterMixin, GuardedModelAdminObjectMixin, GuardedModelAdmin
+    GuardedModelAdminFilterMixin, GuardedModelAdminObjectMixin, GuardedModelAdminMixin, admin.ModelAdmin
 ):
     list_display = (
         "__str__",
