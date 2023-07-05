@@ -92,11 +92,17 @@ A HTTP status code of *200* signals success, all other status codes are to be
 treated as a failure to create a new viewer (e.g. because the live event has
 already ended or does not exist).
 
+The <IPv4/IPv6 of Client> needs to be set to the remote address of the client
+machine that wants to consume the stream.
+
 .. code-block:: http
     :linenos:
 
     PUT /video/live/viewer/<eventid>/
     Host: api.medunigraz.at
+    Content-Type: application/json; charset=utf-8
+
+    {"client": "<IPv4/IPv6 of Client>"}
 
 If successful, this will respond with a JSON body containing information about
 the newly created viewer.
