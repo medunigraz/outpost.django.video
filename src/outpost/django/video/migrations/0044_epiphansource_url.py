@@ -13,7 +13,7 @@ def set_url(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("video", "0045_liveviewer_client"),
+        ("video", "0043_auto_20220913_1004"),
     ]
 
     operations = [
@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
             name="url",
             field=models.URLField(null=True),
         ),
-        migrations.RunPython(set_url),
+        migrations.RunPython(set_url, lambda *a, **k: None),
         migrations.AlterField(
             model_name="epiphansource",
             name="url",
