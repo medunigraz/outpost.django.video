@@ -13,8 +13,8 @@ from guardian.shortcuts import get_objects_for_user
 from ordered_model.admin import OrderedModelAdmin
 from outpost.django.base.admin import NotificationInlineAdmin
 from outpost.django.base.guardian import (
-    GuardedModelAdminMixin,
     GuardedModelAdminFilterMixin,
+    GuardedModelAdminMixin,
     GuardedModelAdminObjectMixin,
 )
 
@@ -86,7 +86,10 @@ class ServerAdmin(admin.ModelAdmin):
 
 @admin.register(models.Epiphan)
 class EpiphanAdmin(
-    GuardedModelAdminFilterMixin, GuardedModelAdminObjectMixin, GuardedModelAdminMixin, admin.ModelAdmin
+    GuardedModelAdminFilterMixin,
+    GuardedModelAdminObjectMixin,
+    GuardedModelAdminMixin,
+    admin.ModelAdmin,
 ):
     list_display = (
         "__str__",

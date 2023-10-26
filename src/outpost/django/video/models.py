@@ -24,7 +24,6 @@ from zipfile import (
 
 import asyncssh
 import certifi
-import django
 import requests
 import streamlink
 from dateutil.relativedelta import relativedelta

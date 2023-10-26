@@ -72,7 +72,11 @@ class LiveRoom(
 
 
 class LiveViewer(
-    CsrfExemptMixin, HttpBasicAuthMixin, LoginRequiredMixin, JSONResponseMixin, View
+    CsrfExemptMixin,
+    HttpBasicAuthMixin,
+    LoginRequiredMixin,
+    JsonRequestResponseMixin,
+    View,
 ):
     @method_decorator(permission_required("video.add_liveviewer", raise_exception=True))
     def post(self, request, event_id):
