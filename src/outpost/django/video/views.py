@@ -1,7 +1,9 @@
 import logging
+from ipaddress import ip_address
 
 from braces.views import (
     CsrfExemptMixin,
+    JsonRequestResponseMixin,
     JSONResponseMixin,
 )
 from django.contrib.auth.decorators import permission_required
@@ -9,6 +11,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import (
     HttpResponse,
     HttpResponseNotFound,
+    HttpResponseServerError,
 )
 from django.shortcuts import (
     get_list_or_404,
@@ -80,8 +83,18 @@ class LiveViewer(
 ):
     @method_decorator(permission_required("video.add_liveviewer", raise_exception=True))
     def post(self, request, event_id):
+        try:
+            client = ip_address(self.request_json.get("client"))
+        except Exception:
+            client = None
         event = get_object_or_404(models.LiveEvent, pk=event_id)
-        viewer = models.LiveViewer.objects.create(event=event)
+        try:
+            viewer = models.LiveViewer.objects.create(event=event, client=client)
+        except models.LiveDeliveryServer.DoesNotExist:
+            return HttpResponseServerError(
+                _("Could not create a valid viewer instance")
+            )
+
         logger.info(f"Created new viewer {viewer}")
         data = {
             "viewer": viewer.pk,

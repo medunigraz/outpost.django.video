@@ -3,6 +3,7 @@ from datetime import timedelta
 from appconf import AppConf
 from django.conf import settings
 from django.utils import timezone
+import geoip2.database import Reader
 
 
 class VideoAppConf(AppConf):
@@ -39,6 +40,7 @@ class VideoAppConf(AppConf):
     LIVE_DELIVERY_NOW_TIMEZONE = timezone.pytz.timezone("Etc/GMT")
     LIVE_STARTUP_ATTEMPTS = 30
     LIVE_STARTUP_WAIT = 2
+    GEOIP_DATABASE = Reader("/var/lib/GeoIP/GeoLite2-City.mmdb")
 
     class Meta:
         prefix = "video"

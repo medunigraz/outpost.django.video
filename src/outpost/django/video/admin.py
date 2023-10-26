@@ -166,10 +166,19 @@ class LiveChannelAdmin(OrderedModelAdmin):
     list_filter = ("enabled",)
 
 
+class LiveDeliveryServerNetworkInline(admin.TabularInline):
+    model = models.LiveDeliveryServerNetwork
+
+
+class LiveDeliveryServerCountryInline(admin.TabularInline):
+    model = models.LiveDeliveryServerCountry
+
+
 @admin.register(models.LiveDeliveryServer)
 class LiveDeliveryServerAdmin(admin.ModelAdmin):
     list_display = ("base", "online")
     list_filter = ("online",)
+    inlines = (LiveDeliveryServerNetworkInline, LiveDeliveryServerCountryInline)
 
 
 class LiveStreamVariantRequirementInline(admin.TabularInline):

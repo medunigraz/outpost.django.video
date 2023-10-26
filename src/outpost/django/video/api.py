@@ -15,6 +15,7 @@ from rest_framework.generics import (
 from rest_framework.permissions import (
     DjangoModelPermissions,
     DjangoModelPermissionsOrAnonReadOnly,
+    IsAuthenticated,
 )
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
