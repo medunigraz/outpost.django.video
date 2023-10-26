@@ -298,6 +298,7 @@ class EpiphanChannel(models.Model):
 class EpiphanSource(models.Model):
     epiphan = models.ForeignKey("Epiphan", on_delete=models.CASCADE)
     name = models.CharField(max_length=64)
+    url = models.URLField(null=True)
     number = models.PositiveSmallIntegerField()
     port = models.PositiveIntegerField(default=554)
     input = models.ForeignKey("Input", blank=True, null=True, on_delete=models.SET_NULL)
@@ -316,12 +317,8 @@ class EpiphanSource(models.Model):
             args = [
                 "ffmpeg",
                 "-y",
-                "-stimeout",
-                str(settings.VIDEO_EPIPHAN_PREVIEW_TIMEOUT),
-                "-analyzeduration",
-                str(settings.VIDEO_EPIPHAN_PREVIEW_ANALYZE_DURATION),
                 "-i",
-                self.rtsp,
+                self.url,
                 "-frames:v",
                 "1",
                 "-f",
@@ -359,12 +356,10 @@ class EpiphanSource(models.Model):
             args = [
                 "ffmpeg",
                 "-y",
-                "-stimeout",
-                "200000",
                 "-t",
                 "5",
                 "-i",
-                self.rtsp,
+                self.url,
                 "-filter_complex",
                 "showwavespic=s=1280x240:colors=#51AE32",
                 "-frames:v",
