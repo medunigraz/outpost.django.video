@@ -733,6 +733,7 @@ class LiveDeliveryServer(models.Model):
     base = models.URLField()
     config = models.CharField(max_length=256, validators=[RedisURLValidator()])
     online = models.BooleanField(default=False, editable=False)
+    enabled = models.BooleanField(default=False)
     timeout = models.PositiveSmallIntegerField(default=5)
 
     def __str__(self):
@@ -1011,6 +1012,7 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
                 LiveDeliveryServer.objects.filter(
                     livedeliveryservernetwork__inet__net_contains=self.client,
                     online=True,
+                    enabled=True,
                 )
                 .order_by("?")
                 .first()
@@ -1021,7 +1023,9 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
             if country:
                 server = (
                     LiveDeliveryServer.objects.filter(
-                        livedeliveryservercountry__country=country, online=True
+                        livedeliveryservercountry__country=country,
+                        online=True,
+                        enabled=True,
                     )
                     .order_by("?")
                     .first()
@@ -1033,6 +1037,7 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
                 livedeliveryservernetwork__inet__isnull=True,
                 livedeliveryservercountry__country__isnull=True,
                 online=True,
+                enabled=True,
             )
             .order_by("?")
             .first()

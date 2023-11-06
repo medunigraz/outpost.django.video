@@ -782,7 +782,7 @@ class LiveDeliveryServerTasks:
         bind=True, ignore_result=False, name=f"{__name__}.LiveDeliveryServer:check"
     )
     def check(task):
-        for d in LiveDeliveryServer.objects.all():
+        for d in LiveDeliveryServer.objects.filter(enabled=True):
             if not d.is_alive():
                 if d.online:
                     logger.warning(f"Delivery server {d} offline")
