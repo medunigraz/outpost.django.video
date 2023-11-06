@@ -1225,7 +1225,7 @@ class LiveTemplateScene(models.Model):
             stream = LiveStream.objects.create(
                 type=ts.type,
                 event=event,
-                source=ts.source.rtsp,
+                source=ts.source.url,
                 list_size=ts.list_size,
                 delete_threshold=ts.delete_threshold,
             )
