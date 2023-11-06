@@ -13,7 +13,7 @@ def set_url(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("video", "0045_liveviewer_client"),
+        ("video", "0043_auto_20220913_1004"),
     ]
 
     operations = [
