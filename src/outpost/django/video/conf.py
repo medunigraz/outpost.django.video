@@ -3,7 +3,7 @@ from datetime import timedelta
 from appconf import AppConf
 from django.conf import settings
 from django.utils import timezone
-import geoip2.database import Reader
+from geoip2.database import Reader
 
 
 class VideoAppConf(AppConf):
