@@ -24,7 +24,6 @@ from zipfile import (
 
 import asyncssh
 import certifi
-import django
 import requests
 import streamlink
 from dateutil.relativedelta import relativedelta
@@ -40,6 +39,7 @@ from django.db import (
     models,
     transaction,
 )
+from django.db.models import Q
 from django.template import (
     Context,
     Template,
@@ -50,6 +50,7 @@ from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.translation import ugettext
 from django.utils.translation import ugettext_lazy as _
+from django_countries.fields import CountryField
 from django_extensions.db.fields import ShortUUIDField
 from django_extensions.db.models import TimeStampedModel
 from django_prometheus.models import ExportModelOperationsMixin
@@ -69,6 +70,11 @@ from more_itertools import (
     chunked,
     divide,
     split_after,
+)
+from netfields import (
+    CidrAddressField,
+    InetAddressField,
+    NetManager,
 )
 from openpyxl import Workbook
 from openpyxl.writer.excel import ExcelWriter
@@ -727,6 +733,7 @@ class LiveDeliveryServer(models.Model):
     base = models.URLField()
     config = models.CharField(max_length=256, validators=[RedisURLValidator()])
     online = models.BooleanField(default=False, editable=False)
+    enabled = models.BooleanField(default=False)
     timeout = models.PositiveSmallIntegerField(default=5)
 
     def __str__(self):
@@ -761,6 +768,23 @@ class LiveDeliveryServer(models.Model):
                 ssl_ca_certs=certifi.where(),
             )
         raise Exception(f"{self.config} is not a valid Redis URL")
+
+
+class LiveDeliveryServerCountry(models.Model):
+    server = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
+    country = CountryField()
+
+    def __str__(self):
+        return self.country.name
+
+
+class LiveDeliveryServerNetwork(models.Model):
+    server = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
+    name = models.CharField(max_length=256)
+    inet = CidrAddressField()
+
+    def __str__(self):
+        return self.name
 
 
 class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
@@ -965,13 +989,68 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
     event = models.ForeignKey(LiveEvent, on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True)
     delivery = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
+    client = InetAddressField(blank=True, null=True)
     statistics = JSONField(null=True, blank=True)
 
-    def pre_save(self, *args, **kwargs):
-        if not hasattr(self, "delivery"):
-            self.delivery = (
-                LiveDeliveryServer.objects.filter(online=True).order_by("?").first()
+    objects = NetManager()
+
+    def get_country(self):
+        if not self.client:
+            return
+        try:
+            geoip = settings.VIDEO_GEOIP_DATABASE.city(self.client)
+        except:
+            return
+        return geoip.country.iso_code
+
+    def get_server(self):
+        server = getattr(self, "delivery", None)
+        if server:
+            return server
+        if self.client:
+            server = (
+                LiveDeliveryServer.objects.filter(
+                    livedeliveryservernetwork__inet__net_contains=self.client,
+                    online=True,
+                    enabled=True,
+                )
+                .order_by("?")
+                .first()
             )
+            if server:
+                return server
+            country = self.get_country()
+            if country:
+                server = (
+                    LiveDeliveryServer.objects.filter(
+                        livedeliveryservercountry__country=country,
+                        online=True,
+                        enabled=True,
+                    )
+                    .order_by("?")
+                    .first()
+                )
+                if server:
+                    return server
+        server = (
+            LiveDeliveryServer.objects.filter(
+                livedeliveryservernetwork__inet__isnull=True,
+                livedeliveryservercountry__country__isnull=True,
+                online=True,
+                enabled=True,
+            )
+            .order_by("?")
+            .first()
+        )
+        return server
+
+    def pre_save(self, *args, **kwargs):
+        if hasattr(self, "delivery"):
+            return
+        server = self.get_server()
+        if not server:
+            raise LiveDeliveryServer.DoesNotExist()
+        self.delivery = server
 
     def post_save(self, *args, **kwargs):
         if not self.event.end:
@@ -1146,7 +1225,7 @@ class LiveTemplateScene(models.Model):
             stream = LiveStream.objects.create(
                 type=ts.type,
                 event=event,
-                source=ts.source.rtsp,
+                source=ts.source.url,
                 list_size=ts.list_size,
                 delete_threshold=ts.delete_threshold,
             )

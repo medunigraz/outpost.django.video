@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
             name="url",
             field=models.URLField(null=True),
         ),
-        migrations.RunPython(set_url),
+        migrations.RunPython(set_url, lambda *a, **k: None),
         migrations.AlterField(
             model_name="epiphansource",
             name="url",

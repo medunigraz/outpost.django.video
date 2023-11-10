@@ -13,8 +13,8 @@ from guardian.shortcuts import get_objects_for_user
 from ordered_model.admin import OrderedModelAdmin
 from outpost.django.base.admin import NotificationInlineAdmin
 from outpost.django.base.guardian import (
-    GuardedModelAdminMixin,
     GuardedModelAdminFilterMixin,
+    GuardedModelAdminMixin,
     GuardedModelAdminObjectMixin,
 )
 
@@ -86,7 +86,10 @@ class ServerAdmin(admin.ModelAdmin):
 
 @admin.register(models.Epiphan)
 class EpiphanAdmin(
-    GuardedModelAdminFilterMixin, GuardedModelAdminObjectMixin, GuardedModelAdminMixin, admin.ModelAdmin
+    GuardedModelAdminFilterMixin,
+    GuardedModelAdminObjectMixin,
+    GuardedModelAdminMixin,
+    admin.ModelAdmin,
 ):
     list_display = (
         "__str__",
@@ -163,10 +166,19 @@ class LiveChannelAdmin(OrderedModelAdmin):
     list_filter = ("enabled",)
 
 
+class LiveDeliveryServerNetworkInline(admin.TabularInline):
+    model = models.LiveDeliveryServerNetwork
+
+
+class LiveDeliveryServerCountryInline(admin.TabularInline):
+    model = models.LiveDeliveryServerCountry
+
+
 @admin.register(models.LiveDeliveryServer)
 class LiveDeliveryServerAdmin(admin.ModelAdmin):
     list_display = ("base", "online")
     list_filter = ("online",)
+    inlines = (LiveDeliveryServerNetworkInline, LiveDeliveryServerCountryInline)
 
 
 class LiveStreamVariantRequirementInline(admin.TabularInline):
