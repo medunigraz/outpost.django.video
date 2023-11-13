@@ -14,7 +14,7 @@ from simpleeval import simple_eval
 GPU = "{{ properties.gpuid }}"
 SEGMENT = "2"
 PREVIEW = "10"
-#RUNTIME = Path(os.environ.get("RUNTIME_DIRECTORY"))
+# RUNTIME = Path(os.environ.get("RUNTIME_DIRECTORY"))
 BASE = Path("/var/www/vhosts/asd.medunigraz.at/livestreams/{{ event.pk }}/")
 FFMPEG = shutil.which("ffmpeg")
 FFPROBE = shutil.which("ffprobe")
@@ -48,7 +48,7 @@ PROTOCOL_OPTIONS = {
 }
 
 
-HTACCESS = '''
+HTACCESS = """
 AddType image/webp .webp
 <FilesMatch "\.(m3u8|ts)$">
     Header set Cache-Control "max-age={SEGMENT},public" "expr=%{% templatetag openvariable %}REQUEST_STATUS{% templatetag closevariable %} == 200"
@@ -62,7 +62,8 @@ RewriteEngine on
 RewriteCond %{{HTTP_ACCEPT}} image/webp
 RewriteCond %{{REQUEST_FILENAME}}.webp -f
 RewriteRule \.(png|jpg|jpeg)$ %{{REQUEST_URI}}.webp [L]
-'''
+"""
+
 
 async def inspect(stream):
     proc = await asyncio.create_subprocess_exec(
@@ -78,14 +79,15 @@ async def inspect(stream):
         stream.get("source"),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        cwd=str(BASE)
+        cwd=str(BASE),
     )
     stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
-        raise Exception("Field to inspect stream {source}: {stderr}".format(
-            source=stream.get("source"),
-            stderr=stderr
-        ))
+        raise Exception(
+            "Field to inspect stream {source}: {stderr}".format(
+                source=stream.get("source"), stderr=stderr
+            )
+        )
     stream["metadata"] = json.loads(stdout)
     return stream
 
@@ -95,14 +97,16 @@ async def transcode(stream):
     variants = stream.get("variants")
     protocol = urlparse(stream.get("source")).scheme
     options = PROTOCOL_OPTIONS.get(protocol, list())
-    has_audio = any(filter(
-        lambda s: s.get("codec_type") == "audio",
-        stream.get("metadata").get("streams")
-    ))
+    has_audio = any(
+        filter(
+            lambda s: s.get("codec_type") == "audio",
+            stream.get("metadata").get("streams"),
+        )
+    )
     filters = [
         "[0:v]split={copies}{maps}[p]".format(
             copies=str(len(variants)) + 1,
-            maps="".join([f"[v_{v}]" for v in variants.keys()])
+            maps="".join([f"[v_{v}]" for v in variants.keys()]),
         )
     ]
     maps = []
@@ -131,8 +135,18 @@ async def transcode(stream):
         else:
             embeds.append(f"v:{v}")
 
-    fps = max([int(simple_eval(s.get("r_frame_rate", "30"))) for s in stream.get("metadata").get("streams") if s.get("codec_type") == "video"])
-    filters.append("[p]select=not(mod(n\,{frames})),split=2[p_jpeg][p_webp]".format(frames=fps * PREVIEW))
+    fps = max(
+        [
+            int(simple_eval(s.get("r_frame_rate", "30")))
+            for s in stream.get("metadata").get("streams")
+            if s.get("codec_type") == "video"
+        ]
+    )
+    filters.append(
+        "[p]select=not(mod(n\,{frames})),split=2[p_jpeg][p_webp]".format(
+            frames=fps * PREVIEW
+        )
+    )
 
     if has_audio:
         for v, vdata in variants.items():
@@ -177,7 +191,7 @@ async def transcode(stream):
         f"{name}_%v.m3u8",
         stdout=sys.stdout,
         stderr=sys.stderr,
-        cwd=str(BASE)
+        cwd=str(BASE),
     )
 
 
@@ -215,9 +229,7 @@ async def manager(stop):
         htaccess.write(HTACCESS.format(SEGMENT=SEGMENT, PREVIEW=PREVIEW))
 
     streams = await asyncio.gather(*[inspect(s) for s in STREAMS])
-    procs = await asyncio.gather(
-        *[asyncio.gather(transcode(s)) for s in streams]
-    )
+    procs = await asyncio.gather(*[asyncio.gather(transcode(s)) for s in streams])
     await stop
     for t in procs:
         t.terminate()
@@ -228,6 +240,7 @@ async def manager(stop):
             if not t.returncode:
                 t.kill()
     shutil.rmtree(BASE)
+
 
 loop = asyncio.get_event_loop()
 
