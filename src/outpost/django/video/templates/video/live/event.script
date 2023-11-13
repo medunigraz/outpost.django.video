@@ -9,6 +9,7 @@ import signal
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
+from simpleeval import simple_eval
 
 GPU = "{{ properties.gpuid }}"
 SEGMENT = "2"
@@ -89,27 +90,6 @@ async def inspect(stream):
     return stream
 
 
-async def preview(stream):
-    name = stream.get("name")
-    protocol = urlparse(stream.get("source")).scheme
-    options = PROTOCOL_OPTIONS.get(protocol, list())
-    return await asyncio.create_subprocess_exec(
-        FFMPEG,
-        "-y",
-        "-hide_banner",
-        "-loglevel", "warning",
-        *options,
-        "-c:v", "h264_cuvid",
-        "-i", stream.get("source"),
-        f"-filter_complex", f"[0:v]fps=fps=1/{PREVIEW}[out]",
-        "-map", "[out]", "-vcodec", "mjpeg",
-        "-f", "tee", f"[f=image2:update=1]{name}.jpg|[f=image2:update=1]{name}.jpg.webp",
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-        cwd=str(BASE)
-    )
-
-
 async def transcode(stream):
     name = stream.get("name")
     variants = stream.get("variants")
@@ -120,8 +100,8 @@ async def transcode(stream):
         stream.get("metadata").get("streams")
     ))
     filters = [
-        "[0:v]split={length}{maps}".format(
-            length=str(len(variants)),
+        "[0:v]split={copies}{maps}[p]".format(
+            copies=str(len(variants)) + 1,
             maps="".join([f"[v_{v}]" for v in variants.keys()])
         )
     ]
@@ -151,6 +131,9 @@ async def transcode(stream):
         else:
             embeds.append(f"v:{v}")
 
+    fps = max([int(simple_eval(s.get("r_frame_rate", "30"))) for s in stream.get("metadata").get("streams") if s.get("codec_type") == "video"])
+    filters.append("[p]select=not(mod(n\,{frames})),split=2[p_jpeg][p_webp]".format(frames=fps * PREVIEW))
+
     if has_audio:
         for v, vdata in variants.items():
             maps.extend([
@@ -171,6 +154,16 @@ async def transcode(stream):
         "-c:v", "h264_cuvid",
         "-i", stream.get("source"),
         "-filter_complex", ";".join(filters),
+        "-map", "[p_jpeg]",
+        "-vcodec", "mjpeg",
+        "-f", "image2",
+        "-update", "1",
+        f"{name}.jpg",
+        "-map", "[p_webp]",
+        "-vcodec", "libwebp",
+        "-f", "image2",
+        "-update", "1",
+        f"{name}.jpg.webp",
         *maps,
         "-f", "hls",
         "-hls_time", SEGMENT,
@@ -223,23 +216,17 @@ async def manager(stop):
 
     streams = await asyncio.gather(*[inspect(s) for s in STREAMS])
     procs = await asyncio.gather(
-        *[asyncio.gather(transcode(s), preview(s)) for s in streams]
+        *[asyncio.gather(transcode(s)) for s in streams]
     )
     await stop
-    for t, p in procs:
+    for t in procs:
         t.terminate()
-        p.terminate()
-    for t, p in procs:
+    for t in procs:
         try:
             await asyncio.wait_for(t.wait(), timeout=5)
         except asyncio.TimeoutError:
             if not t.returncode:
                 t.kill()
-        try:
-            await asyncio.wait_for(p.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            if not p.returncode:
-                p.kill()
     shutil.rmtree(BASE)
 
 loop = asyncio.get_event_loop()
