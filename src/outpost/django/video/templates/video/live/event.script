@@ -72,6 +72,8 @@ async def inspect(stream):
         "-show_error",
         "-show_format",
         "-show_streams",
+        "-analyzeduration", "256k",
+        "-probesize", "512k",
         stream.get("source"),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
