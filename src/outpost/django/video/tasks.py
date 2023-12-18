@@ -347,25 +347,15 @@ class EpiphanTasks:
         queue = task.request.delivery_info.get("routing_key")
 
         for s in sources:
-            # TODO: Get queue from current task instead of hardcoding it.
-            EpiphanTasks.preview_video.apply_async((s.pk,), queue=queue)
-            EpiphanTasks.preview_audio.apply_async((s.pk,), queue=queue)
+            EpiphanTasks.preview_source.apply_async((s.pk,), queue=queue)
 
     @shared_task(
         bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_video"
     )
-    def preview_video(task, pk):
+    def preview_source(task, pk):
         source = EpiphanSource.objects.get(pk=pk)
         logger.debug(f"Epiphan source video preview: {source}")
-        source.generate_video_preview()
-
-    @shared_task(
-        bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_audio"
-    )
-    def preview_audio(task, pk):
-        source = EpiphanSource.objects.get(pk=pk)
-        logger.debug(f"Epiphan source audio waveform: {source}")
-        source.generate_audio_waveform()
+        source.generate_preview()
 
     @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:reboot")
     def reboot(task):

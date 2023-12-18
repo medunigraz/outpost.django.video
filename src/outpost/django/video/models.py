@@ -316,89 +316,93 @@ class EpiphanSource(models.Model):
     def rtsp(self):
         return f"rtsp://{self.epiphan.hostname}:{self.port}/stream.sdp"
 
-    def generate_video_preview(self):
-        # Video preview
-        logger.debug(f"{self}: Fetching video preview from {self.rtsp}")
+    def generate_preview(self):
+        logger.debug(f"{self}: Generating previews from {self.url}")
         try:
-            args = [
-                "ffmpeg",
-                "-y",
-                "-i",
-                self.url,
-                "-frames:v",
-                "1",
-                "-f",
-                "image2pipe",
-                "-",
-            ]
-            ffmpeg = subprocess.run(
-                args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True
+            inp = subprocess.Popen(
+                ["ffmpeg", "-t", "5", "-i", self.url, "-f", "mpegts", "-"],
+                stdout=subprocess.PIPE,
             )
-            img = Image.open(io.BytesIO(ffmpeg.stdout))
-            buf = io.BytesIO()
-            img.save(buf, "JPEG", optimize=True, quality=70)
+            video = subprocess.Popen(
+                [
+                    "ffmpeg",
+                    "-f",
+                    "mpegts",
+                    "-i",
+                    "pipe:",
+                    "-vcodec",
+                    "libwebp",
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "image2pipe",
+                    "-",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+            audio = subprocess.Popen(
+                [
+                    "ffmpeg",
+                    "-f",
+                    "mpegts",
+                    "-i",
+                    "pipe:",
+                    "-filter_complex",
+                    "showwavespic=s=1280x240:colors=#51AE32",
+                    "-vcodec",
+                    "libwebp",
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "image2pipe",
+                    "-",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+            while (data := inp.stdout.read(8192)):
+                video.stdin.write(data)
+                audio.stdin.write(data)
+            video.stdin.close()
+            audio.stdin.close()
             logger.debug(f"{self}: Saving new preview image")
             cache.set(
-                f"EpiphanSource-{self.id}-video-preview", buf.getbuffer().tobytes(), 120
+                f"EpiphanSource-{self.id}-video-preview", video.stdout.read(), 120
             )
+            logger.debug(f"{self}: Saving new waveform image")
+            cache.set(
+                f"EpiphanSource-{self.id}-audio-waveform",
+                audio.stdout.read(),
+                120,
+            )
+            inp.wait()
+            video.wait()
+            audio.wait()
         except Exception as e:
-            logger.warn(f"{self}: Failed to generate video preview: {e}")
+            logger.warn(f"{self}: Failed to generate previews: {e}")
             cache.delete(f"EpiphanSource-{self.id}-video-preview")
+            cache.delete(f"EpiphanSource-{self.id}-audio-waveform")
 
     @property
     def video_preview(self):
         data = cache.get(f"EpiphanSource-{self.id}-video-preview")
         if not data:
-            name = finders.find("video/placeholder/video.jpg")
+            name = finders.find("video/placeholder/video.webp")
             with open(name, "rb") as f:
                 data = f.read()
         b64 = b64encode(data).decode()
-        return f"data:image/jpeg;base64,{b64}"
-
-    def generate_audio_waveform(self):
-        # Audio waveform
-        logger.debug(f"{self}: Fetching audio waveform from {self.rtsp}")
-        try:
-            args = [
-                "ffmpeg",
-                "-y",
-                "-t",
-                "5",
-                "-i",
-                self.url,
-                "-filter_complex",
-                "showwavespic=s=1280x240:colors=#51AE32",
-                "-frames:v",
-                "1",
-                "-f",
-                "image2pipe",
-                "-",
-            ]
-            ffmpeg = subprocess.run(
-                args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True
-            )
-            img = Image.open(io.BytesIO(ffmpeg.stdout))
-            buf = io.BytesIO()
-            img.save(buf, "PNG", optimize=True, quality=70)
-            logger.debug(f"{self}: Saving new waveform image")
-            cache.set(
-                f"EpiphanSource-{self.id}-audio-waveform",
-                buf.getbuffer().tobytes(),
-                120,
-            )
-        except Exception as e:
-            logger.warn(f"{self}: Failed to generate audio waveform: {e}")
-            cache.delete(f"EpiphanSource-{self.id}-audio-waveform")
+        return f"data:image/webp;base64,{b64}"
 
     @property
     def audio_waveform(self):
         data = cache.get(f"EpiphanSource-{self.id}-audio-waveform")
         if not data:
-            name = finders.find("video/placeholder/audio.png")
+            name = finders.find("video/placeholder/audio.webp")
             with open(name, "rb") as f:
                 data = f.read()
         b64 = b64encode(data).decode()
-        return f"data:image/png;base64,{b64}"
+        return f"data:image/webp;base64,{b64}"
 
     def __str__(self):
         return "{s.epiphan}, {s.number}".format(s=self)
