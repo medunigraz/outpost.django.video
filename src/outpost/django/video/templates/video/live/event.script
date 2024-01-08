@@ -19,6 +19,7 @@ BASE = Path("/var/www/vhosts/asd.medunigraz.at/livestreams/{{ event.pk }}/")
 FFMPEG = shutil.which("ffmpeg")
 FFPROBE = shutil.which("ffprobe")
 SSH = shutil.which("ssh")
+SCENE_THRESHOLD = "0.4"
 STREAMS = [
 {% for s in event.livestream_set.all %}
     {
@@ -104,7 +105,7 @@ async def transcode(stream):
         )
     )
     filters = [
-        "[0:v]split={copies}{maps}[p]".format(
+        "[0:v]split@fanout={copies}{maps}[p]".format(
             copies=str(len(variants)) + 1,
             maps="".join([f"[v_{v}]" for v in variants.keys()]),
         )
@@ -113,7 +114,7 @@ async def transcode(stream):
     embeds = []
     for v, vdata in variants.items():
         height = vdata.get("height")
-        filters.append(f"[v_{v}]scale=-1:{height}[v_{v}_scaled]")
+        filters.append(f"[v_{v}]scale@scale_v_{v}=w=-1:h={height}[v_{v}_scaled]")
         maps.extend([
             "-map", f"[v_{v}_scaled]",
             f"-r:v:{v}", "30",
@@ -126,7 +127,6 @@ async def transcode(stream):
             f"-preset:v:{v}", vdata.get("preset"),
             f"-profile:v:{v}", vdata.get("profile"),
             f"-g:v:{v}", "60",
-            f"-sc_threshold:v:{v}", "0",
             f"-keyint_min:v:{v}", "60",
             f"-rc-lookahead:v:{v}", "0",
         ])
@@ -135,17 +135,8 @@ async def transcode(stream):
         else:
             embeds.append(f"v:{v}")
 
-    fps = max(
-        [
-            int(simple_eval(s.get("r_frame_rate", "30")))
-            for s in stream.get("metadata").get("streams")
-            if s.get("codec_type") == "video"
-        ]
-    )
     filters.append(
-        "[p]select=not(mod(n\,{frames})),split=2[p_jpeg][p_webp]".format(
-            frames=fps * PREVIEW
-        )
+        f"[p]select@scenefilter='not(n)+gt(scene\\,{SCENE_THRESHOLD})',split@preview=2[p_jpeg][p_webp]"
     )
 
     if has_audio:
@@ -165,16 +156,18 @@ async def transcode(stream):
         "-flags", "low_delay",
         "-strict", "experimental",
         *options,
+        "-hwaccel_device", GPU,
+        "-hwaccel", "cuda",
         "-c:v", "h264_cuvid",
         "-i", stream.get("source"),
         "-filter_complex", ";".join(filters),
         "-map", "[p_jpeg]",
-        "-vcodec", "mjpeg",
+        "-fps_mode", "passthrough",
         "-f", "image2",
         "-update", "1",
         f"{name}.jpg",
         "-map", "[p_webp]",
-        "-vcodec", "libwebp",
+        "-fps_mode", "passthrough",
         "-f", "image2",
         "-update", "1",
         f"{name}.jpg.webp",
