@@ -106,7 +106,7 @@ async def transcode(stream):
     )
     filters = [
         "[0:v]split@fanout={copies}{maps}[p]".format(
-            copies=str(len(variants)) + 1,
+            copies=str(len(variants) + 1),
             maps="".join([f"[v_{v}]" for v in variants.keys()]),
         )
     ]
@@ -222,7 +222,7 @@ async def manager(stop):
         htaccess.write(HTACCESS.format(SEGMENT=SEGMENT, PREVIEW=PREVIEW))
 
     streams = await asyncio.gather(*[inspect(s) for s in STREAMS])
-    procs = await asyncio.gather(*[asyncio.gather(transcode(s)) for s in streams])
+    procs = await asyncio.gather(*[transcode(s) for s in streams])
     await stop
     for t in procs:
         t.terminate()
