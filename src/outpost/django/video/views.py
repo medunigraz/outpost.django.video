@@ -74,6 +74,16 @@ class LiveRoom(
         return HttpResponse()
 
 
+class LiveEvent(JSONResponseMixin, DetailView):
+    model = models.LiveEvent
+
+    def get_queryset(self):
+        return super().get_queryset().filter(end=None)
+
+    def get(self, request, *args, **kwargs):
+        return self.render_json_response({"viewer": self.get_object().viewer_count()})
+
+
 class LiveViewer(
     CsrfExemptMixin,
     HttpBasicAuthMixin,
