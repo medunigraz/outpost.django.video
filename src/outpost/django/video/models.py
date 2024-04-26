@@ -214,6 +214,21 @@ class Epiphan(Recorder):
         self.online = False
         self.save()
 
+    @property
+    def status(self):
+        url = self.url.path("api/system/status").as_string()
+        return self.session.get(url).json().get("result")
+
+    @property
+    def firmware(self):
+        url = self.url.path("api/system/firmware").as_string()
+        return self.session.get(url).json().get("result")
+
+    @property
+    def hardware(self):
+        url = self.url.path("api/system/hardware").as_string()
+        return self.session.get(url).json().get("result")
+
 
 @signal_connect
 class EpiphanChannel(models.Model):
@@ -768,6 +783,8 @@ class LiveDeliveryServerNetwork(models.Model):
     server = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
     name = models.CharField(max_length=256)
     inet = CidrAddressField()
+
+    objects = NetManager()
 
     def __str__(self):
         return self.name

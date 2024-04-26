@@ -265,6 +265,15 @@ class EpiphanTasks:
             files={"identity": ("key", epiphan.private_key())},
             data={"command": "add"},
         )
+        epiphan.session.post(
+            epiphan.url.path("admin/infocfg").as_string(),
+            data={
+                "pfd_form_id": "fn_identity",
+                "identity_name": epiphan.name,
+                "identity_description": "",
+                "identity_location": str(epiphan.room),
+            },
+        )
 
     def createRecorder(self, name):
         self.epiphan.session.post(self.epiphan.url.path("api/recorders").as_string())
