@@ -807,8 +807,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         return get_template("video/live/event.script").template.source
 
     def start(self):
-        from .tasks import LiveEventTasks
-
         self.started = timezone.now()
         self.save()
         for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(
@@ -840,12 +838,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
             ds.redis.set(
                 f"HLS/Event/{self.pk}", self.job.worker.properties.get("transcoder-id")
             )
-        # transaction.commit()
-        # task = LiveEventTasks.ready_to_publish.apply_async(
-        #    (self.pk,),
-        #    queue=settings.VIDEO_CELERY_QUEUE
-        # )
-        # task.wait(60)
         retry = Retrying(
             stop=stop_after_attempt(settings.VIDEO_LIVE_STARTUP_ATTEMPTS),
             wait=wait_fixed(settings.VIDEO_LIVE_STARTUP_WAIT),
