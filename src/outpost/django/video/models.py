@@ -1,4 +1,3 @@
-import io
 import logging
 import os
 import re
@@ -12,7 +11,6 @@ from functools import (
     reduce,
 )
 from hashlib import sha256
-from math import ceil
 from tempfile import (
     NamedTemporaryFile,
     TemporaryDirectory,
@@ -26,7 +24,6 @@ import asyncssh
 import certifi
 import requests
 import streamlink
-from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.contrib.sites.models import Site
@@ -39,7 +36,6 @@ from django.db import (
     models,
     transaction,
 )
-from django.db.models import Q
 from django.template import (
     Context,
     Template,
@@ -47,7 +43,6 @@ from django.template import (
 from django.template.loader import get_template
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.encoding import force_str
 from django.utils.translation import ugettext
 from django.utils.translation import ugettext_lazy as _
 from django_countries.fields import CountryField
@@ -66,11 +61,6 @@ from memoize import (
     delete_memoized,
     memoize,
 )
-from more_itertools import (
-    chunked,
-    divide,
-    split_after,
-)
 from netfields import (
     CidrAddressField,
     InetAddressField,
@@ -85,16 +75,12 @@ from outpost.django.base.utils import (
     Process,
     Uuid4Upload,
 )
-from outpost.django.base.validators import (
-    RedisURLValidator,
-    UnitValidator,
-)
+from outpost.django.base.validators import RedisURLValidator
 from outpost.django.campusonline.models import (
     Course,
     CourseGroupTerm,
     Person,
 )
-from PIL import Image
 from polymorphic.models import PolymorphicModel
 from purl import URL
 from redis import Redis
@@ -103,10 +89,6 @@ from tenacity import (
     Retrying,
     stop_after_attempt,
     wait_fixed,
-)
-from webvtt import (
-    Caption,
-    WebVTT,
 )
 
 from .conf import settings
@@ -1003,7 +985,7 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
             return
         try:
             geoip = settings.VIDEO_GEOIP_DATABASE.city(self.client)
-        except:
+        except Exception:
             return
         return geoip.country.iso_code
 
