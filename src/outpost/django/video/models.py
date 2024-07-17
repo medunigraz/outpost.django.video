@@ -595,14 +595,14 @@ class SideBySideExport(Export):
             else:
                 filt = "null"
             videos.append(
-                ("[i:{}]{}[v{}]".format(v["index"], filt, i), "[v{}]".format(i))
+                ("[i:{}]{}[v{}]".format(v["id"], filt, i), "[v{}]".format(i))
             )
         aus = [s for s in streams if s["codec_type"] == "audio"]
         fc = "{vf};{v}hstack=inputs={vl}[v];{a}amerge[a]".format(
             vf=";".join([v[0] for v in videos]),
             v="".join([v[1] for v in videos]),
             vl=len(videos),
-            a="".join(["[i:{}]".format(a["index"]) for a in aus]),
+            a="".join(["[i:{}]".format(a["id"]) for a in aus]),
         )
         with NamedTemporaryFile(suffix=".mp4") as output:
             args = [
@@ -648,9 +648,9 @@ class ZipStreamExport(Export):
             for s in self.recording.info["streams"]:
                 f = mapping.get(s["codec_name"])
                 name = os.path.join(
-                    path, "{s[codec_type]}-{s[index]}.{f}".format(s=s, f=f)
+                    path, "{s[codec_type]}-{s[id]}.{f}".format(s=s, f=f)
                 )
-                args.extend(["-map", "i:{s[index]}".format(s=s), "-c", "copy", name])
+                args.extend(["-map", "i:{s[id]}".format(s=s), "-c", "copy", name])
                 streams.append(name)
             ffmpeg = Process(*args)
             ffmpeg.handler(FFMPEGProgressHandler(partial(notify, "Splitting")))
