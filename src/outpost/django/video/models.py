@@ -594,7 +594,9 @@ class SideBySideExport(Export):
                 filt = "pad=height={}".format(height)
             else:
                 filt = "null"
-            videos.append(("[i:{}]{}[v{}]".format(v["index"], filt, i), "[v{}]".format(i)))
+            videos.append(
+                ("[i:{}]{}[v{}]".format(v["index"], filt, i), "[v{}]".format(i))
+            )
         aus = [s for s in streams if s["codec_type"] == "audio"]
         fc = "{vf};{v}hstack=inputs={vl}[v];{a}amerge[a]".format(
             vf=";".join([v[0] for v in videos]),

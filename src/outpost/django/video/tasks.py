@@ -1,7 +1,5 @@
-import io
 import logging
 import mimetypes
-import os.path
 import re
 import socket
 from contextlib import ExitStack
@@ -18,14 +16,12 @@ from celery import (
     states,
 )
 from celery.exceptions import Ignore
-from celery.schedules import crontab
 from django.contrib.sites.models import Site
 from django.core.files import File
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
-from outpost.django.base.tasks import MaintainanceTaskMixin
 from outpost.django.base.utils import Process
 from outpost.django.campusonline.models import (
     Course,
@@ -39,7 +35,6 @@ from outpost.django.campusonline.serializers import (
 )
 from pint import UnitRegistry
 from purl import URL
-from requests.auth import HTTPBasicAuth
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .conf import settings
