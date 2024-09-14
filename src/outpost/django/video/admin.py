@@ -15,7 +15,8 @@ from outpost.django.base.admin import NotificationInlineAdmin
 from outpost.django.base.guardian import (
     GuardedModelAdminFilterMixin,
     GuardedModelAdminMixin,
-    GuardedModelAdminObjectMixin,
+    GuardedModelAdminPermissionMixin,
+    GuardedModelAdminSaveMixin,
 )
 
 from . import models
@@ -87,7 +88,8 @@ class ServerAdmin(admin.ModelAdmin):
 @admin.register(models.Epiphan)
 class EpiphanAdmin(
     GuardedModelAdminFilterMixin,
-    GuardedModelAdminObjectMixin,
+    GuardedModelAdminSaveMixin,
+    GuardedModelAdminPermissionMixin,
     GuardedModelAdminMixin,
     admin.ModelAdmin,
 ):
