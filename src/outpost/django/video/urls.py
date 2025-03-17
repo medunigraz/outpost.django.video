@@ -24,6 +24,11 @@ urlpatterns = [
         name="live-room",
     ),
     url(
+        r"^live/event/(?P<pk>[\w]+)/$",
+        views.LiveEvent.as_view(),
+        name="live-event",
+    ),
+    url(
         r"^live/viewer/(?P<event_id>[\w]+)/$",
         views.LiveViewer.as_view(),
         name="live-viewer",

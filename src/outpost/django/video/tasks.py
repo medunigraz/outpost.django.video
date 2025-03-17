@@ -1,7 +1,5 @@
-import io
 import logging
 import mimetypes
-import os.path
 import re
 import socket
 from contextlib import ExitStack
@@ -18,14 +16,12 @@ from celery import (
     states,
 )
 from celery.exceptions import Ignore
-from celery.schedules import crontab
 from django.contrib.sites.models import Site
 from django.core.files import File
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
-from outpost.django.base.tasks import MaintainanceTaskMixin
 from outpost.django.base.utils import Process
 from outpost.django.campusonline.models import (
     Course,
@@ -39,7 +35,6 @@ from outpost.django.campusonline.serializers import (
 )
 from pint import UnitRegistry
 from purl import URL
-from requests.auth import HTTPBasicAuth
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 from .conf import settings
@@ -265,6 +260,15 @@ class EpiphanTasks:
             files={"identity": ("key", epiphan.private_key())},
             data={"command": "add"},
         )
+        epiphan.session.post(
+            epiphan.url.path("admin/infocfg").as_string(),
+            data={
+                "pfd_form_id": "fn_identity",
+                "identity_name": epiphan.name,
+                "identity_description": "",
+                "identity_location": str(epiphan.room),
+            },
+        )
 
     def createRecorder(self, name):
         self.epiphan.session.post(self.epiphan.url.path("api/recorders").as_string())
@@ -347,25 +351,15 @@ class EpiphanTasks:
         queue = task.request.delivery_info.get("routing_key")
 
         for s in sources:
-            # TODO: Get queue from current task instead of hardcoding it.
-            EpiphanTasks.preview_video.apply_async((s.pk,), queue=queue)
-            EpiphanTasks.preview_audio.apply_async((s.pk,), queue=queue)
+            EpiphanTasks.preview_source.apply_async((s.pk,), queue=queue)
 
     @shared_task(
         bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_video"
     )
-    def preview_video(task, pk):
+    def preview_source(task, pk):
         source = EpiphanSource.objects.get(pk=pk)
         logger.debug(f"Epiphan source video preview: {source}")
-        source.generate_video_preview()
-
-    @shared_task(
-        bind=True, ignore_result=True, name=f"{__name__}.Epiphan:preview_audio"
-    )
-    def preview_audio(task, pk):
-        source = EpiphanSource.objects.get(pk=pk)
-        logger.debug(f"Epiphan source audio waveform: {source}")
-        source.generate_audio_waveform()
+        source.generate_preview()
 
     @shared_task(bind=True, ignore_result=True, name=f"{__name__}.Epiphan:reboot")
     def reboot(task):

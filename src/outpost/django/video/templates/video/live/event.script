@@ -10,14 +10,17 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
+from simpleeval import simple_eval
+
 GPU = "{{ properties.gpuid }}"
 SEGMENT = "2"
 PREVIEW = "10"
-#RUNTIME = Path(os.environ.get("RUNTIME_DIRECTORY"))
+# RUNTIME = Path(os.environ.get("RUNTIME_DIRECTORY"))
 BASE = Path("/var/www/vhosts/asd.medunigraz.at/livestreams/{{ event.pk }}/")
 FFMPEG = shutil.which("ffmpeg")
 FFPROBE = shutil.which("ffprobe")
 SSH = shutil.which("ssh")
+SCENE_THRESHOLD = "0.4"
 STREAMS = [
 {% for s in event.livestream_set.all %}
     {
@@ -47,7 +50,7 @@ PROTOCOL_OPTIONS = {
 }
 
 
-HTACCESS = '''
+HTACCESS = """
 AddType image/webp .webp
 <FilesMatch "\.(m3u8|ts)$">
     Header set Cache-Control "max-age={SEGMENT},public" "expr=%{% templatetag openvariable %}REQUEST_STATUS{% templatetag closevariable %} == 200"
@@ -61,7 +64,8 @@ RewriteEngine on
 RewriteCond %{{HTTP_ACCEPT}} image/webp
 RewriteCond %{{REQUEST_FILENAME}}.webp -f
 RewriteRule \.(png|jpg|jpeg)$ %{{REQUEST_URI}}.webp [L]
-'''
+"""
+
 
 async def inspect(stream):
     proc = await asyncio.create_subprocess_exec(
@@ -77,37 +81,17 @@ async def inspect(stream):
         stream.get("source"),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        cwd=str(BASE)
+        cwd=str(BASE),
     )
     stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
-        raise Exception("Field to inspect stream {source}: {stderr}".format(
-            source=stream.get("source"),
-            stderr=stderr
-        ))
+        raise Exception(
+            "Field to inspect stream {source}: {stderr}".format(
+                source=stream.get("source"), stderr=stderr
+            )
+        )
     stream["metadata"] = json.loads(stdout)
     return stream
-
-
-async def preview(stream):
-    name = stream.get("name")
-    protocol = urlparse(stream.get("source")).scheme
-    options = PROTOCOL_OPTIONS.get(protocol, list())
-    return await asyncio.create_subprocess_exec(
-        FFMPEG,
-        "-y",
-        "-hide_banner",
-        "-loglevel", "warning",
-        *options,
-        "-c:v", "h264_cuvid",
-        "-i", stream.get("source"),
-        f"-filter_complex", f"[0:v]fps=fps=1/{PREVIEW}[out]",
-        "-map", "[out]", "-vcodec", "mjpeg",
-        "-f", "tee", f"[f=image2:update=1]{name}.jpg|[f=image2:update=1]{name}.jpg.webp",
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-        cwd=str(BASE)
-    )
 
 
 async def transcode(stream):
@@ -115,21 +99,23 @@ async def transcode(stream):
     variants = stream.get("variants")
     protocol = urlparse(stream.get("source")).scheme
     options = PROTOCOL_OPTIONS.get(protocol, list())
-    has_audio = any(filter(
-        lambda s: s.get("codec_type") == "audio",
-        stream.get("metadata").get("streams")
-    ))
+    has_audio = any(
+        filter(
+            lambda s: s.get("codec_type") == "audio",
+            stream.get("metadata").get("streams"),
+        )
+    )
     filters = [
-        "[0:v]split={length}{maps}".format(
-            length=str(len(variants)),
-            maps="".join([f"[v_{v}]" for v in variants.keys()])
+        "[0:v]split@fanout={copies}{maps}[p]".format(
+            copies=str(len(variants) + 1),
+            maps="".join([f"[v_{v}]" for v in variants.keys()]),
         )
     ]
     maps = []
     embeds = []
     for v, vdata in variants.items():
         height = vdata.get("height")
-        filters.append(f"[v_{v}]scale=-1:{height}[v_{v}_scaled]")
+        filters.append(f"[v_{v}]scale@scale_v_{v}=w=-1:h={height}[v_{v}_scaled]")
         maps.extend([
             "-map", f"[v_{v}_scaled]",
             f"-r:v:{v}", "30",
@@ -142,7 +128,6 @@ async def transcode(stream):
             f"-preset:v:{v}", vdata.get("preset"),
             f"-profile:v:{v}", vdata.get("profile"),
             f"-g:v:{v}", "60",
-            f"-sc_threshold:v:{v}", "0",
             f"-keyint_min:v:{v}", "60",
             f"-rc-lookahead:v:{v}", "0",
         ])
@@ -150,6 +135,10 @@ async def transcode(stream):
             embeds.append(f"v:{v},a:{v}")
         else:
             embeds.append(f"v:{v}")
+
+    filters.append(
+        f"[p]select@scenefilter='not(n)+gt(scene\\,{SCENE_THRESHOLD})',split@preview=2[p_jpeg][p_webp]"
+    )
 
     if has_audio:
         for v, vdata in variants.items():
@@ -168,9 +157,21 @@ async def transcode(stream):
         "-flags", "low_delay",
         "-strict", "experimental",
         *options,
+        "-hwaccel_device", GPU,
+        "-hwaccel", "cuda",
         "-c:v", "h264_cuvid",
         "-i", stream.get("source"),
         "-filter_complex", ";".join(filters),
+        "-map", "[p_jpeg]",
+        "-fps_mode", "passthrough",
+        "-f", "image2",
+        "-update", "1",
+        f"{name}.jpg",
+        "-map", "[p_webp]",
+        "-fps_mode", "passthrough",
+        "-f", "image2",
+        "-update", "1",
+        f"{name}.jpg.webp",
         *maps,
         "-f", "hls",
         "-hls_time", SEGMENT,
@@ -184,7 +185,7 @@ async def transcode(stream):
         f"{name}_%v.m3u8",
         stdout=sys.stdout,
         stderr=sys.stderr,
-        cwd=str(BASE)
+        cwd=str(BASE),
     )
 
 
@@ -222,25 +223,18 @@ async def manager(stop):
         htaccess.write(HTACCESS.format(SEGMENT=SEGMENT, PREVIEW=PREVIEW))
 
     streams = await asyncio.gather(*[inspect(s) for s in STREAMS])
-    procs = await asyncio.gather(
-        *[asyncio.gather(transcode(s), preview(s)) for s in streams]
-    )
+    procs = await asyncio.gather(*[transcode(s) for s in streams])
     await stop
-    for t, p in procs:
+    for t in procs:
         t.terminate()
-        p.terminate()
-    for t, p in procs:
+    for t in procs:
         try:
             await asyncio.wait_for(t.wait(), timeout=5)
         except asyncio.TimeoutError:
             if not t.returncode:
                 t.kill()
-        try:
-            await asyncio.wait_for(p.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            if not p.returncode:
-                p.kill()
     shutil.rmtree(BASE)
+
 
 loop = asyncio.get_event_loop()
 

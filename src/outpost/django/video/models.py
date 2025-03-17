@@ -1,4 +1,3 @@
-import io
 import logging
 import os
 import re
@@ -12,7 +11,6 @@ from functools import (
     reduce,
 )
 from hashlib import sha256
-from math import ceil
 from tempfile import (
     NamedTemporaryFile,
     TemporaryDirectory,
@@ -26,7 +24,6 @@ import asyncssh
 import certifi
 import requests
 import streamlink
-from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.contrib.sites.models import Site
@@ -39,7 +36,6 @@ from django.db import (
     models,
     transaction,
 )
-from django.db.models import Q
 from django.template import (
     Context,
     Template,
@@ -47,7 +43,6 @@ from django.template import (
 from django.template.loader import get_template
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.encoding import force_str
 from django.utils.translation import ugettext
 from django.utils.translation import ugettext_lazy as _
 from django_countries.fields import CountryField
@@ -66,11 +61,6 @@ from memoize import (
     delete_memoized,
     memoize,
 )
-from more_itertools import (
-    chunked,
-    divide,
-    split_after,
-)
 from netfields import (
     CidrAddressField,
     InetAddressField,
@@ -85,16 +75,12 @@ from outpost.django.base.utils import (
     Process,
     Uuid4Upload,
 )
-from outpost.django.base.validators import (
-    RedisURLValidator,
-    UnitValidator,
-)
+from outpost.django.base.validators import RedisURLValidator
 from outpost.django.campusonline.models import (
     Course,
     CourseGroupTerm,
     Person,
 )
-from PIL import Image
 from polymorphic.models import PolymorphicModel
 from purl import URL
 from redis import Redis
@@ -103,10 +89,6 @@ from tenacity import (
     Retrying,
     stop_after_attempt,
     wait_fixed,
-)
-from webvtt import (
-    Caption,
-    WebVTT,
 )
 
 from .conf import settings
@@ -232,6 +214,21 @@ class Epiphan(Recorder):
         self.online = False
         self.save()
 
+    @property
+    def status(self):
+        url = self.url.path("api/system/status").as_string()
+        return self.session.get(url).json().get("result")
+
+    @property
+    def firmware(self):
+        url = self.url.path("api/system/firmware").as_string()
+        return self.session.get(url).json().get("result")
+
+    @property
+    def hardware(self):
+        url = self.url.path("api/system/hardware").as_string()
+        return self.session.get(url).json().get("result")
+
 
 @signal_connect
 class EpiphanChannel(models.Model):
@@ -316,89 +313,93 @@ class EpiphanSource(models.Model):
     def rtsp(self):
         return f"rtsp://{self.epiphan.hostname}:{self.port}/stream.sdp"
 
-    def generate_video_preview(self):
-        # Video preview
-        logger.debug(f"{self}: Fetching video preview from {self.rtsp}")
+    def generate_preview(self):
+        logger.debug(f"{self}: Generating previews from {self.url}")
         try:
-            args = [
-                "ffmpeg",
-                "-y",
-                "-i",
-                self.url,
-                "-frames:v",
-                "1",
-                "-f",
-                "image2pipe",
-                "-",
-            ]
-            ffmpeg = subprocess.run(
-                args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True
+            inp = subprocess.Popen(
+                ["ffmpeg", "-t", "5", "-i", self.url, "-f", "mpegts", "-"],
+                stdout=subprocess.PIPE,
             )
-            img = Image.open(io.BytesIO(ffmpeg.stdout))
-            buf = io.BytesIO()
-            img.save(buf, "JPEG", optimize=True, quality=70)
+            video = subprocess.Popen(
+                [
+                    "ffmpeg",
+                    "-f",
+                    "mpegts",
+                    "-i",
+                    "pipe:",
+                    "-vcodec",
+                    "libwebp",
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "image2pipe",
+                    "-",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+            audio = subprocess.Popen(
+                [
+                    "ffmpeg",
+                    "-f",
+                    "mpegts",
+                    "-i",
+                    "pipe:",
+                    "-filter_complex",
+                    "showwavespic=s=1280x240:colors=#51AE32",
+                    "-vcodec",
+                    "libwebp",
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "image2pipe",
+                    "-",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+            while (data := inp.stdout.read(8192)):
+                video.stdin.write(data)
+                audio.stdin.write(data)
+            video.stdin.close()
+            audio.stdin.close()
             logger.debug(f"{self}: Saving new preview image")
             cache.set(
-                f"EpiphanSource-{self.id}-video-preview", buf.getbuffer().tobytes(), 120
+                f"EpiphanSource-{self.id}-video-preview", video.stdout.read(), 120
             )
+            logger.debug(f"{self}: Saving new waveform image")
+            cache.set(
+                f"EpiphanSource-{self.id}-audio-waveform",
+                audio.stdout.read(),
+                120,
+            )
+            inp.wait()
+            video.wait()
+            audio.wait()
         except Exception as e:
-            logger.warn(f"{self}: Failed to generate video preview: {e}")
+            logger.warn(f"{self}: Failed to generate previews: {e}")
             cache.delete(f"EpiphanSource-{self.id}-video-preview")
+            cache.delete(f"EpiphanSource-{self.id}-audio-waveform")
 
     @property
     def video_preview(self):
         data = cache.get(f"EpiphanSource-{self.id}-video-preview")
         if not data:
-            name = finders.find("video/placeholder/video.jpg")
+            name = finders.find("video/placeholder/video.webp")
             with open(name, "rb") as f:
                 data = f.read()
         b64 = b64encode(data).decode()
-        return f"data:image/jpeg;base64,{b64}"
-
-    def generate_audio_waveform(self):
-        # Audio waveform
-        logger.debug(f"{self}: Fetching audio waveform from {self.rtsp}")
-        try:
-            args = [
-                "ffmpeg",
-                "-y",
-                "-t",
-                "5",
-                "-i",
-                self.url,
-                "-filter_complex",
-                "showwavespic=s=1280x240:colors=#51AE32",
-                "-frames:v",
-                "1",
-                "-f",
-                "image2pipe",
-                "-",
-            ]
-            ffmpeg = subprocess.run(
-                args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True
-            )
-            img = Image.open(io.BytesIO(ffmpeg.stdout))
-            buf = io.BytesIO()
-            img.save(buf, "PNG", optimize=True, quality=70)
-            logger.debug(f"{self}: Saving new waveform image")
-            cache.set(
-                f"EpiphanSource-{self.id}-audio-waveform",
-                buf.getbuffer().tobytes(),
-                120,
-            )
-        except Exception as e:
-            logger.warn(f"{self}: Failed to generate audio waveform: {e}")
-            cache.delete(f"EpiphanSource-{self.id}-audio-waveform")
+        return f"data:image/webp;base64,{b64}"
 
     @property
     def audio_waveform(self):
         data = cache.get(f"EpiphanSource-{self.id}-audio-waveform")
         if not data:
-            name = finders.find("video/placeholder/audio.png")
+            name = finders.find("video/placeholder/audio.webp")
             with open(name, "rb") as f:
                 data = f.read()
         b64 = b64encode(data).decode()
-        return f"data:image/png;base64,{b64}"
+        return f"data:image/webp;base64,{b64}"
 
     def __str__(self):
         return "{s.epiphan}, {s.number}".format(s=self)
@@ -593,7 +594,9 @@ class SideBySideExport(Export):
                 filt = "pad=height={}".format(height)
             else:
                 filt = "null"
-            videos.append(("[i:{}]{}[v{}]".format(v["id"], filt, i), "[v{}]".format(i)))
+            videos.append(
+                ("[i:{}]{}[v{}]".format(v["id"], filt, i), "[v{}]".format(i))
+            )
         aus = [s for s in streams if s["codec_type"] == "audio"]
         fc = "{vf};{v}hstack=inputs={vl}[v];{a}amerge[a]".format(
             vf=";".join([v[0] for v in videos]),
@@ -783,6 +786,8 @@ class LiveDeliveryServerNetwork(models.Model):
     name = models.CharField(max_length=256)
     inet = CidrAddressField()
 
+    objects = NetManager()
+
     def __str__(self):
         return self.name
 
@@ -804,8 +809,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         return get_template("video/live/event.script").template.source
 
     def start(self):
-        from .tasks import LiveEventTasks
-
         self.started = timezone.now()
         self.save()
         for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(
@@ -837,12 +840,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
             ds.redis.set(
                 f"HLS/Event/{self.pk}", self.job.worker.properties.get("transcoder-id")
             )
-        # transaction.commit()
-        # task = LiveEventTasks.ready_to_publish.apply_async(
-        #    (self.pk,),
-        #    queue=settings.VIDEO_CELERY_QUEUE
-        # )
-        # task.wait(60)
         retry = Retrying(
             stop=stop_after_attempt(settings.VIDEO_LIVE_STARTUP_ATTEMPTS),
             wait=wait_fixed(settings.VIDEO_LIVE_STARTUP_WAIT),
@@ -999,7 +996,7 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
             return
         try:
             geoip = settings.VIDEO_GEOIP_DATABASE.city(self.client)
-        except:
+        except Exception:
             return
         return geoip.country.iso_code
 
