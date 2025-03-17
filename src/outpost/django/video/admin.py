@@ -111,6 +111,7 @@ class EpiphanAdmin(
         EpiphanInputInlineAdmin,
         NotificationInlineAdmin,
     )
+    base_model = models.Recorder
 
     def fingerprint(self, obj):
         return mark_safe("<code>{}</code>".format(obj.fingerprint()))
