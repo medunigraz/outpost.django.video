@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import shutil
 import re
 from contextlib import ExitStack
 from pathlib import Path
@@ -63,7 +64,7 @@ class Command(TranscribeMixin, BaseCommand):
             )
             with NamedTemporaryFile(prefix="transcribe-upload-", suffix=".flac") as t:
                 args = (
-                    "ffmpeg",
+                    shutil.which("ffmpeg"),
                     "-y",
                     "-hide_banner",
                     "-loglevel",

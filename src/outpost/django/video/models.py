@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import shutil
 import subprocess
 from base64 import b64encode
 from collections import Counter
@@ -317,12 +318,12 @@ class EpiphanSource(models.Model):
         logger.debug(f"{self}: Generating previews from {self.url}")
         try:
             inp = subprocess.Popen(
-                ["ffmpeg", "-t", "5", "-i", self.url, "-f", "mpegts", "-"],
+                [shutil.which("ffmpeg"), "-t", "5", "-i", self.url, "-f", "mpegts", "-"],
                 stdout=subprocess.PIPE,
             )
             video = subprocess.Popen(
                 [
-                    "ffmpeg",
+                    shutil.which("ffmpeg"),
                     "-f",
                     "mpegts",
                     "-i",
@@ -340,7 +341,7 @@ class EpiphanSource(models.Model):
             )
             audio = subprocess.Popen(
                 [
-                    "ffmpeg",
+                    shutil.which("ffmpeg"),
                     "-f",
                     "mpegts",
                     "-i",
@@ -606,7 +607,7 @@ class SideBySideExport(Export):
         )
         with NamedTemporaryFile(suffix=".mp4") as output:
             args = [
-                "ffmpeg",
+                shutil.which("ffmpeg"),
                 "-y",
                 "-i",
                 self.recording.online.path,
@@ -643,7 +644,7 @@ class ZipStreamExport(Export):
             RecordingTasks.process.run(self.pk)
         mapping = {"h264": "m4v", "aac": "m4a"}
         streams = []
-        args = ["ffmpeg", "-y", "-i", self.recording.online.path]
+        args = [shutil.which("ffmpeg"), "-y", "-i", self.recording.online.path]
         with TemporaryDirectory(prefix="recording") as path:
             for s in self.recording.info["streams"]:
                 f = mapping.get(s["codec_name"])
