@@ -228,7 +228,7 @@ class TranscribeMixin:
 
 def json2vtt(data):
     def timestamp(sec: float) -> str:
-        t = relativedelta(microseconds=int(sec * (10 ** 6)))
+        t = relativedelta(microseconds=int(sec * (10**6)))
         return f"{t.hours:03.0f}:{t.minutes:02.0f}:{t.seconds:02.0f}.{t.microseconds/1000:03.0f}"
 
     def content(a, v) -> str:

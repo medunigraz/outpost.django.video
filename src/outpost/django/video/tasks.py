@@ -138,9 +138,9 @@ class RecordingTasks:
         rec.metadata = {
             "title": rec.title,
             "room": RoomSerializer(rec.recorder.room.campusonline).data,
-            "presenter": PersonSerializer(rec.presenter).data
-            if rec.presenter
-            else None,
+            "presenter": (
+                PersonSerializer(rec.presenter).data if rec.presenter else None
+            ),
             "course": CourseSerializer(rec.course).data,
         }
         rec.save()

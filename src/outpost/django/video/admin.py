@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.urls import re_path
 from django.contrib import (
     admin,
     messages,
@@ -7,8 +7,7 @@ from django.http import HttpResponse
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from django.utils.translation import ngettext
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ngettext, gettext_lazy as _
 from guardian.shortcuts import get_objects_for_user
 from ordered_model.admin import OrderedModelAdmin
 from outpost.django.base.admin import NotificationInlineAdmin
@@ -282,7 +281,7 @@ class LiveEventAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         urls += [
-            url(
+            re_path(
                 r"^statistics/(?P<pk>\w+)$",
                 self.statistics_file,
                 name="video_liveevent_statistics",

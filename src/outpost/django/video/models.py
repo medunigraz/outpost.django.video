@@ -25,7 +25,6 @@ import certifi
 import requests
 import streamlink
 from django.contrib.contenttypes.fields import GenericRelation
-from django.contrib.postgres.fields import JSONField
 from django.contrib.sites.models import Site
 from django.contrib.staticfiles import finders
 from django.core.cache import cache
@@ -43,8 +42,7 @@ from django.template import (
 from django.template.loader import get_template
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.translation import ugettext
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext, gettext_lazy as _
 from django_countries.fields import CountryField
 from django_extensions.db.fields import ShortUUIDField
 from django_extensions.db.models import TimeStampedModel
@@ -358,7 +356,7 @@ class EpiphanSource(models.Model):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
             )
-            while (data := inp.stdout.read(8192)):
+            while data := inp.stdout.read(8192):
                 video.stdin.write(data)
                 audio.stdin.write(data)
             video.stdin.close()
@@ -486,7 +484,7 @@ class Recording(
         "Recorder", null=True, blank=True, on_delete=models.SET_NULL
     )
     online = models.FileField(upload_to=Uuid4Upload, null=True)
-    info = JSONField(null=True)
+    info = models.JSONField(null=True)
     archive = models.FileField(
         upload_to=Uuid4Upload,
         default=None,
@@ -512,7 +510,7 @@ class Recording(
         related_name="+",
     )
     title = models.TextField(blank=True, null=True)
-    metadata = JSONField(blank=True, null=True)
+    metadata = models.JSONField(blank=True, null=True)
     ready = models.BooleanField(default=False)
 
     @property
@@ -594,9 +592,7 @@ class SideBySideExport(Export):
                 filt = "pad=height={}".format(height)
             else:
                 filt = "null"
-            videos.append(
-                ("[i:{}]{}[v{}]".format(v["id"], filt, i), "[v{}]".format(i))
-            )
+            videos.append(("[i:{}]{}[v{}]".format(v["id"], filt, i), "[v{}]".format(i)))
         aus = [s for s in streams if s["codec_type"] == "audio"]
         fc = "{vf};{v}hstack=inputs={vl}[v];{a}amerge[a]".format(
             vf=";".join([v[0] for v in videos]),
@@ -924,11 +920,11 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         wb.active.title = str(self.title)
         wb.active.append(
             (
-                ugettext("Viewer-ID"),
-                ugettext("Delivery-URL"),
-                ugettext("Stream Type"),
-                ugettext("Timestamp"),
-                ugettext("Variant"),
+                gettext("Viewer-ID"),
+                gettext("Delivery-URL"),
+                gettext("Stream Type"),
+                gettext("Timestamp"),
+                gettext("Variant"),
             )
         )
         for lv in self.liveviewer_set.all():
@@ -987,7 +983,7 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
     created = models.DateTimeField(auto_now_add=True)
     delivery = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
     client = InetAddressField(blank=True, null=True)
-    statistics = JSONField(null=True, blank=True)
+    statistics = models.JSONField(null=True, blank=True)
 
     objects = NetManager()
 
@@ -1205,9 +1201,9 @@ class LiveTemplateScene(models.Model):
                     presenter = None
                 context["campusonline"] = {
                     "title": cgt.get("title", ""),
-                    "presenter": PersonSerializer(presenter).data
-                    if presenter
-                    else None,
+                    "presenter": (
+                        PersonSerializer(presenter).data if presenter else None
+                    ),
                     "course": CourseSerializer(course).data if course else None,
                 }
         event = LiveEvent.objects.create(
@@ -1244,7 +1240,7 @@ class LiveTemplateStream(models.Model):
 #    event = models.ForeignKey("Event)")
 #    language = models.ForeignKey("TranscribeLanguage")
 #    created = models.DateTimeField(auto_now_add=True)
-#    data = JSONField(blank=True, null=True)
+#    data = models.JSONField(blank=True, null=True)
 #    duration = models.DurationField()
 #
 #    @staticmethod

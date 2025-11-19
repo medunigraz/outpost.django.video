@@ -1,35 +1,35 @@
-from django.conf.urls import url
+from django.urls import path
 
 from . import views
 
 app_name = "video"
 
 urlpatterns = [
-    url(
-        r"^live/room/(?P<template_id>[0-9]+)/(?P<scene_id>[0-9]+)/public/$",
+    path(
+        "live/room/<int:template_id>/<int:scene_id>/public/",
         views.LiveRoom.as_view(),
         {"public": True},
         name="live-room",
     ),
-    url(
-        r"^live/room/(?P<template_id>[0-9]+)/(?P<scene_id>[0-9]+)/$",
+    path(
+        "live/room/<int:template_id>/<int:scene_id>/",
         views.LiveRoom.as_view(),
         {"public": False},
         name="live-room",
     ),
-    url(
-        r"^live/room/(?P<template_id>[0-9]+)/$",
+    path(
+        "live/room/<int:template_id>/",
         views.LiveRoom.as_view(),
         {"public": False, "scene_id": None},
         name="live-room",
     ),
-    url(
-        r"^live/event/(?P<pk>[\w]+)/$",
+    path(
+        "live/event/<str:pk>/",
         views.LiveEvent.as_view(),
         name="live-event",
     ),
-    url(
-        r"^live/viewer/(?P<event_id>[\w]+)/$",
+    path(
+        "live/viewer/<str:event_id>/",
         views.LiveViewer.as_view(),
         name="live-viewer",
     ),
