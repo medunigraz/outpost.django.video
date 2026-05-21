@@ -21,7 +21,7 @@ from django.core.files import File
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from outpost.django.base.utils import Process
 from outpost.django.campusonline.models import (
     Course,
