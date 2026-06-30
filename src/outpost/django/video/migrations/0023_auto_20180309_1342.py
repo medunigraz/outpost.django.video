@@ -12,7 +12,10 @@ from django.db import (
 
 class Migration(migrations.Migration):
 
-    dependencies = [("campusonline", "0012_event"), ("video", "0022_recording_start")]
+    dependencies = [
+        ("campusonline", "0001_initial"),
+        ("video", "0022_recording_start")
+    ]
 
     operations = [
         migrations.AddField(

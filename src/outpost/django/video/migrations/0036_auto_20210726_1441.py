@@ -15,7 +15,6 @@ from django.db import (
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("campusonline", "0058_student_email"),
         ("django_sshworker", "0002_auto_20210519_1504"),
         ("video", "0035_auto_20200805_1403"),
     ]

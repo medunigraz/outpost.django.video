@@ -12,7 +12,6 @@ from django.db import (
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("campusonline", "0012_event"),
         ("video", "0023_auto_20180309_1342"),
     ]
 
