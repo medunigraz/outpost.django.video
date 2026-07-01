@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import re
+import shutil
 import subprocess
 from functools import (
     partial,
@@ -151,7 +152,7 @@ class FFProbeProcess:
         if timeout:
             args.extend(["timeout", str(timeout)])
 
-        args.extend(["ffprobe", "-print_format", "json"])
+        args.extend([shutil.which("ffprobe"), "-print_format", "json"])
         args.extend(list(commands))
         logger.debug("Preparing: {}".format(" ".join(args)))
         self.cmd = partial(

@@ -1,6 +1,7 @@
 import logging
 import mimetypes
 import re
+import shutil
 import socket
 from contextlib import ExitStack
 from datetime import timedelta
@@ -587,7 +588,7 @@ class AuphonicTasks:
             prefix="auphonic-input-", suffix=f".{AuphonicTasks.format}"
         ) as output:
             extract = Process(
-                "ffmpeg",
+                shutil.which("ffmpeg"),
                 "-y",
                 "-i",
                 rec.online.path,
@@ -713,7 +714,7 @@ class AuphonicTasks:
                 ),
             )
             with NamedTemporaryFile(prefix="auphonic-merged-", suffix=".ts") as output:
-                args = ["ffmpeg", "-y", "-i", rec.online.path]
+                args = [shutil.which("ffmpeg"), "-y", "-i", rec.online.path]
                 args.extend(inp)
                 args.extend(["-map", "0:v", "-map", "0:a"])
                 args.extend(maps)
