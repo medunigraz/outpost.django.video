@@ -316,7 +316,16 @@ class EpiphanSource(models.Model):
         logger.debug(f"{self}: Generating previews from {self.url}")
         try:
             inp = subprocess.Popen(
-                [shutil.which("ffmpeg"), "-t", "5", "-i", self.url, "-f", "mpegts", "-"],
+                [
+                    shutil.which("ffmpeg"),
+                    "-t",
+                    "5",
+                    "-i",
+                    self.url,
+                    "-f",
+                    "mpegts",
+                    "-",
+                ],
                 stdout=subprocess.PIPE,
             )
             video = subprocess.Popen(
