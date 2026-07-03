@@ -255,7 +255,7 @@ class Command(BaseCommand):
                 port=server.port,
                 server_factory=partial(SSHServer, server),
                 sftp_factory=partial(SFTPServer, server),
-                server_host_keys=[asyncssh.import_private_key(server.key.tobytes())],
+                server_host_keys=[asyncssh.import_private_key(server.key)],
                 x11_forwarding=False,
                 agent_forwarding=False,
                 login_timeout=10,
