@@ -11,7 +11,6 @@ from functools import (
     partial,
     reduce,
 )
-from hashlib import sha256
 from tempfile import (
     NamedTemporaryFile,
     TemporaryDirectory,
@@ -111,9 +110,7 @@ class Server(models.Model):
         if not self.key:
             return None
         k = asyncssh.import_private_key(self.key)
-        d = sha256(k.get_ssh_public_key()).digest()
-        f = b64encode(d).replace(b"=", b"").decode("utf-8")
-        return "SHA256:{}".format(f)
+        return k.get_fingerprint()
 
     def pre_save(self, *args, **kwargs):
         if self.key:
@@ -175,9 +172,7 @@ class Epiphan(Recorder):
         if not self.key:
             return None
         k = asyncssh.import_private_key(self.key)
-        d = sha256(k.public_data).digest()
-        f = b64encode(d).replace(b"=", b"").decode("utf-8")
-        return "SHA256:{}".format(f)
+        return k.get_fingerprint()
 
     def private_key(self):
         return self.key.decode("ascii")
