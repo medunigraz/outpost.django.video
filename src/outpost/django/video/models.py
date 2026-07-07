@@ -110,7 +110,7 @@ class Server(models.Model):
     def fingerprint(self):
         if not self.key:
             return None
-        k = asyncssh.import_private_key(self.key.tobytes())
+        k = asyncssh.import_private_key(self.key)
         d = sha256(k.get_ssh_public_key()).digest()
         f = b64encode(d).replace(b"=", b"").decode("utf-8")
         return "SHA256:{}".format(f)
@@ -174,13 +174,13 @@ class Epiphan(Recorder):
     def fingerprint(self):
         if not self.key:
             return None
-        k = asyncssh.import_private_key(self.key.tobytes())
+        k = asyncssh.import_private_key(self.key)
         d = sha256(k.public_data).digest()
         f = b64encode(d).replace(b"=", b"").decode("utf-8")
         return "SHA256:{}".format(f)
 
     def private_key(self):
-        return self.key.tobytes().decode("ascii")
+        return self.key.decode("ascii")
 
     def post_init(self, *args, **kwargs):
         self.session = requests.Session()
