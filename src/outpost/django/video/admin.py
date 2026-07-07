@@ -39,8 +39,8 @@ class EpiphanRecordingAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        view = f"{qs.model._meta.app_label}.view_recorder"
-        change = f"{qs.model._meta.app_label}.change_recorder"
+        view = f"{qs.model._meta.app_label}.view_epiphan"
+        change = f"{qs.model._meta.app_label}.change_epiphan"
         epiphans = get_objects_for_user(
             request.user,
             (view, change),
