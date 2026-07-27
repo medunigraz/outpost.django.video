@@ -1,4 +1,5 @@
 from django.http import Http404
+from django.core.exceptions import BadRequest
 from django.shortcuts import get_object_or_404
 from guardian.shortcuts import get_objects_for_user
 from outpost.django.api.permissions import (
@@ -70,12 +71,13 @@ class ExportClassViewSet(ListAPIView, RetrieveAPIView, GenericViewSet):
     def get_object(self):
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
 
-        assert lookup_url_kwarg in self.kwargs, (
-            "Expected view %s to be called with a URL keyword argument "
-            'named "%s". Fix your URL conf, or set the `.lookup_field` '
-            "attribute on the view correctly."
-            % (self.__class__.__name__, lookup_url_kwarg)
-        )
+        if lookup_url_kwarg not in self.kwargs:
+            raise BadRequest(
+                f"Expected view {self.__class__.__name__} to be called with a "
+                f'URL keyword argument named "{lookup_url_kwarg}". Fix your '
+                "URL conf, or set the `.lookup_field` attribute on the view "
+                "correctly."
+            )
 
         exporter = self.kwargs[lookup_url_kwarg]
         exporters = dict(self.get_queryset())

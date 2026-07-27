@@ -4,7 +4,7 @@ import logging
 import math
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404
 from functools import (
     partial,
     reduce,
@@ -209,7 +209,7 @@ class TranscribeMixin:
             raise TranscribeException(_("Job not yet completed"))
         url = result.get("Transcript").get("TranscriptFileUri")
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"Could not fetch transcription results for {job}: {e}")

@@ -1,3 +1,5 @@
+import nh3
+
 from django.urls import re_path
 from django.contrib import (
     admin,
@@ -79,7 +81,9 @@ class ServerAdmin(admin.ModelAdmin):
     readonly_fields = ("fingerprint",)
 
     def fingerprint(self, obj):
-        return mark_safe("<code>{}</code>".format(obj.fingerprint()))
+        return mark_safe(
+            nh3.clean("<code>{}</code>".format(obj.fingerprint()))
+        )  # nosec B308 B703
 
     fingerprint.short_description = "SSH host key fingerprint"
 
@@ -113,12 +117,16 @@ class EpiphanAdmin(
     base_model = models.Recorder
 
     def fingerprint(self, obj):
-        return mark_safe("<code>{}</code>".format(obj.fingerprint()))
+        return mark_safe(
+            nh3.clean("<code>{}</code>".format(obj.fingerprint()))
+        )  # nosec B308 B703
 
     fingerprint.short_description = "SSH public key fingerprint"
 
     def private_key(self, obj):
-        return mark_safe("<pre>{}</pre>".format(obj.private_key()))
+        return mark_safe(
+            nh3.clean("<pre>{}</pre>".format(obj.private_key()))
+        )  # nosec B308 B703
 
     private_key.short_description = "SSH private key"
 

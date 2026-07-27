@@ -386,6 +386,7 @@ class EpiphanInputTasks:
                     "nosignal_src": ei.nosignal_src.name,
                     "nosignal_timeout": ei.nosignal_timeout or "",
                 },
+                timeout=10,
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -407,6 +408,7 @@ class EpiphanInputTasks:
                     "nosignal_src": "",
                     "nosignal_timeout": "",
                 },
+                timeout=10,
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -425,6 +427,7 @@ class EpiphanMediaTasks:
             resp = em.epiphan.session.post(
                 em.epiphan.url.path("admin/media").as_string(),
                 files={"1": (em.name, em.image.open("rb"))},
+                timeout=10,
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -439,7 +442,8 @@ class EpiphanMediaTasks:
         ep = Epiphan.objects.get(pk=pk)
         try:
             resp = ep.session.delete(
-                ep.url.path("api/media/files").add_path_segment(name).as_string()
+                ep.url.path("api/media/files").add_path_segment(name).as_string(),
+                timeout=10,
             )
             resp.raise_for_status()
         except requests.RequestException as e:
@@ -510,7 +514,7 @@ class TranscribeTask(TranscribeMixin):
             .add_path_segment("publications")
         )
         try:
-            resp = requests.get(url.as_string())
+            resp = requests.get(url.as_string(), timeout=10)
             resp.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"Could not fetch Opencast publications for {event}: {e}")
@@ -627,6 +631,7 @@ class AuphonicTasks:
                         auth=AuphonicTasks.auth,
                         data=data,
                         headers=headers,
+                        timeout=10,
                     ) as resp:
                         resp.raise_for_status()
                         uuid = resp.json().get("data").get("uuid")
@@ -654,7 +659,9 @@ class AuphonicTasks:
             logger.info(f"No job ID specified for {pk}, skipping Auphonic result.")
             return
         try:
-            with requests.get(url.as_string(), auth=AuphonicTasks.auth) as resp:
+            with requests.get(
+                url.as_string(), auth=AuphonicTasks.auth, timeout=10
+            ) as resp:
                 resp.raise_for_status()
                 data = resp.json().get("data")
         except requests.exceptions.RequestException as e:
@@ -691,7 +698,7 @@ class AuphonicTasks:
                 try:
                     logger.debug(f"Downloading Auphonic media: {download}")
                     with requests.get(
-                        download, stream=True, auth=AuphonicTasks.auth
+                        download, stream=True, auth=AuphonicTasks.auth, timeout=10
                     ) as resp:
                         resp.raise_for_status()
                         for chunk in resp.iter_content(
@@ -723,7 +730,9 @@ class AuphonicTasks:
                 merge.run()
                 rec.online.save(output.name, File(output.file))
         try:
-            with requests.delete(url.as_string(), auth=AuphonicTasks.auth) as resp:
+            with requests.delete(
+                url.as_string(), auth=AuphonicTasks.auth, timeout=10
+            ) as resp:
                 resp.raise_for_status()
                 logger.debug(f"Removed production from Auphonic: {job}")
         except requests.exceptions.RequestException as e:

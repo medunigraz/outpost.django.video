@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404
 from base64 import b64encode
 from collections import Counter
 from datetime import timedelta
@@ -310,7 +310,7 @@ class EpiphanSource(models.Model):
     def generate_preview(self):
         logger.debug(f"{self}: Generating previews from {self.url}")
         try:
-            inp = subprocess.Popen(
+            inp = subprocess.Popen(  # nosec B603
                 [
                     shutil.which("ffmpeg"),
                     "-t",
@@ -323,7 +323,7 @@ class EpiphanSource(models.Model):
                 ],
                 stdout=subprocess.PIPE,
             )
-            video = subprocess.Popen(
+            video = subprocess.Popen(  # nosec B603
                 [
                     shutil.which("ffmpeg"),
                     "-f",
@@ -341,7 +341,7 @@ class EpiphanSource(models.Model):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
             )
-            audio = subprocess.Popen(
+            audio = subprocess.Popen(  # nosec B603
                 [
                     shutil.which("ffmpeg"),
                     "-f",
