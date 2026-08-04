@@ -1,0 +1,47 @@
+{% extends "outpost/base.html" %}
+{% load i18n %}
+{% load crispy_forms_tags %}
+
+{% block style %}
+{{ block.super }}
+{{ wizard.form.media }}
+{% endblock %}
+
+{% block content %}
+<h1>{% trans "Create new push event" %}</h1>
+<form action="" method="post">
+  {% csrf_token %}
+  {{ wizard.management_form }}
+  <div class="card">
+    <div class="card-header">
+      Step {{ wizard.steps.step1 }} of {{ wizard.steps.count }}
+    </div>
+    <div class="card-body">
+        {% if wizard.form.forms %}
+            {% crispy wizard.form.management_form %}
+            {% for form in wizard.form.forms %}
+                {% crispy form.as_table %}
+            {% endfor %}
+        {% else %}
+            {% crispy wizard.form %}
+        {% endif %}
+    </div>
+    <div class="card-footer">
+      {% if wizard.steps.prev %}
+      <button class="btn btn-secondary" name="wizard_goto_step" type="submit" value="{{ wizard.steps.first }}">
+        <i class="fa fa-fast-backward" aria-hidden="true"></i>
+        {% trans "first step" %}
+      </button>
+      <button class="btn btn-secondary" name="wizard_goto_step" type="submit" value="{{ wizard.steps.prev }}">
+        <i class="fa fa-step-backward" aria-hidden="true"></i>
+        {% trans "prev step" %}
+      </button>
+      {% endif %}
+      <button class="btn btn-primary float-right" type="submit">
+        <i class="fa fa-step-forward" aria-hidden="true"></i>
+        {% trans "Next" %}
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

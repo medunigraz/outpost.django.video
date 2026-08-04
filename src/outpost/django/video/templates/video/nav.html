@@ -1,0 +1,11 @@
+{% load i18n %}
+{% if request.user.is_authenticated %}
+{% if perms.video.add_pushevent or user.is_superuser %}
+<li class="nav-item">
+  <a class="nav-link" href="{% url 'video:push-create' %}" role="button">
+    <i class="fa fa-film" aria-hidden="true"></i>
+    {% trans "Streaming" %}
+  </a>
+</li>
+{% endif %}
+{% endif %}

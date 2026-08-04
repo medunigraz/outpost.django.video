@@ -18,6 +18,11 @@ from outpost.django.base.guardian import (
     GuardedModelAdminPermissionMixin,
     GuardedModelAdminSaveMixin,
 )
+from polymorphic.admin import (
+    PolymorphicChildModelAdmin,
+    PolymorphicChildModelFilter,
+    PolymorphicParentModelAdmin,
+)
 
 from . import models
 
@@ -179,8 +184,8 @@ class LiveDeliveryServerCountryInline(admin.TabularInline):
 
 @admin.register(models.LiveDeliveryServer)
 class LiveDeliveryServerAdmin(admin.ModelAdmin):
-    list_display = ("base", "online")
-    list_filter = ("online",)
+    list_display = ("base", "enabled", "online")
+    list_filter = ("enabled", "online")
     inlines = (LiveDeliveryServerNetworkInline, LiveDeliveryServerCountryInline)
 
 
@@ -197,6 +202,64 @@ class LiveStreamVariantAdmin(admin.ModelAdmin):
 @admin.register(models.LiveTemplate)
 class LiveTemplateAdmin(admin.ModelAdmin):
     pass
+
+
+class PushServerProtocolInline(admin.TabularInline):
+    model = models.PushServerProtocol
+
+
+@admin.register(models.PushServer)
+class PushServerAdmin(admin.ModelAdmin):
+    list_display = ("hostname", "url", "enabled")
+    list_filter = ("enabled",)
+    inlines = (PushServerProtocolInline,)
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "hostname",
+                    "enabled",
+                    "url",
+                    "source",
+                    "username",
+                    "password",
+                    "recordings",
+                )
+            },
+        ),
+        (
+            _("URLs"),
+            {
+                "classes": ("collapse",),
+                "fields": ("url_authentication", "url_ready", "url_not_ready"),
+            },
+        ),
+    )
+    readonly_fields = ("url_authentication", "url_ready", "url_not_ready")
+
+    def url_authentication(self, obj):
+        path = reverse("video:push-auth", kwargs={"pk": obj.pk})
+        return format_html("""<a href="{}"><code>{}</code></a>""", path, path)
+
+    format_html.short_description = _("Authentication")
+
+    def url_ready(self, obj):
+        path = reverse("video:push-ready", kwargs={"pk": obj.pk})
+        return format_html("""<a href="{}"><code>{}</code></a>""", path, path)
+
+    url_ready.short_description = _("Ready")
+
+    def url_not_ready(self, obj):
+        path = reverse("video:push-not-ready", kwargs={"pk": obj.pk})
+        return format_html("""<a href="{}"><code>{}</code></a>""", path, path)
+
+    url_not_ready.short_description = _("Not ready")
+
+
+@admin.register(models.PushProtocol)
+class PushProtocolAdmin(admin.ModelAdmin):
+    list_display = ("name", "identifier")
 
 
 class LiveTemplateStreamInline(admin.TabularInline):
@@ -249,6 +312,46 @@ class LiveTemplateSceneAdmin(admin.ModelAdmin):
     private.short_description = _("Start new private live events")
 
 
+class LiveEventChildAdmin(PolymorphicChildModelAdmin):
+    base_model = models.LiveEvent
+    search_fields = ("title", "description")
+    date_hierarchy = "begin"
+    readonly_fields = ("statistics_link",)
+
+    def stop(self, request, queryset):
+        for e in queryset.all():
+            e.stop()
+
+    stop.short_description = _("Stop selected live events")
+
+    def get_urls(self):
+        urls = super().get_urls()
+        urls += [
+            url(
+                r"^statistics/(?P<pk>\w+)$",
+                self.statistics_file,
+                name="video_liveevent_statistics",
+            ),
+        ]
+        return urls
+
+    def statistics_link(self, obj):
+        return format_html(
+            '<a href="{}">XLSX</a>',
+            reverse("admin:video_liveevent_statistics", args=[obj.pk]),
+        )
+
+    statistics_link.short_description = "Statistics"
+
+    def statistics_file(self, request, pk):
+        response = HttpResponse()
+        le = models.LiveEvent.objects.get(pk=pk)
+        mt = le.excel(response)
+        response["Content-Type"] = mt
+        response["Content-Disposition"] = f'attachment; filename="{le.pk}.xlsx"'
+        return response
+
+
 class LiveStreamInline(admin.TabularInline):
     model = models.LiveStream
 
@@ -257,15 +360,24 @@ class LiveViewerInline(admin.TabularInline):
     model = models.LiveViewer
 
 
+class PushLiveIngestInline(admin.TabularInline):
+    model = models.PushLiveIngest
+
+    #fields = ()
+    readonly_fields = ("url",)
+
+
 @admin.register(models.LiveEvent)
-class LiveEventAdmin(admin.ModelAdmin):
-    list_display = ("pk", "channel", "title", "started", "begin", "end", "public")
-    list_filter = ("channel", "public", "begin", "end")
+class LiveEventAdmin(PolymorphicParentModelAdmin):
+    list_display = ("pk", "title", "started", "begin", "end", "public")
+    list_filter = ("public", "begin", "end")
     search_fields = ("title", "description")
     date_hierarchy = "begin"
     inlines = (LiveStreamInline, LiveViewerInline)
     actions = ("start", "stop")
     readonly_fields = ("statistics_link",)
+    child_models = (models.OnDemandLiveEvent, models.PushLiveEvent)
+    list_filter = (PolymorphicChildModelFilter,)
 
     def start(self, request, queryset):
         for e in queryset.all():
@@ -305,3 +417,29 @@ class LiveEventAdmin(admin.ModelAdmin):
         response["Content-Type"] = mt
         response["Content-Disposition"] = f'attachment; filename="{le.pk}.xlsx"'
         return response
+
+
+@admin.register(models.OnDemandLiveEvent)
+class OnDemandLiveEventAdmin(LiveEventChildAdmin):
+    base_model = models.OnDemandLiveEvent
+    show_in_index = True
+    list_display = ("pk", "channel", "title", "started", "begin", "end", "public")
+    list_filter = ("channel", "public", "begin", "end")
+    inlines = (LiveStreamInline, LiveViewerInline)
+    actions = ("start", "stop")
+
+    def start(self, request, queryset):
+        for e in queryset.all():
+            e.start()
+
+    start.short_description = _("Start selected live events")
+
+
+@admin.register(models.PushLiveEvent)
+class PushLiveEventAdmin(LiveEventChildAdmin):
+    base_model = models.PushLiveEvent
+    show_in_index = True
+    list_display = ("pk", "title", "started", "begin", "end", "public")
+    list_filter = ("public", "begin", "end")
+    inlines = (PushLiveIngestInline, LiveStreamInline, LiveViewerInline)
+    actions = ("stop",)

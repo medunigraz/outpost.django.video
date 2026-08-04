@@ -33,4 +33,29 @@ urlpatterns = [
         views.LiveViewer.as_view(),
         name="live-viewer",
     ),
+    url(
+        r"^push/auth/(?P<pk>\d+)$",
+        views.PushAuthentication.as_view(),
+        name="push-auth",
+    ),
+    url(
+        r"^push/ready/(?P<pk>\d+)$",
+        views.PushReady.as_view(),
+        name="push-ready",
+    ),
+    url(
+        r"^push/notready/(?P<pk>\d+)$",
+        views.PushNotReady.as_view(),
+        name="push-not-ready",
+    ),
+    url(
+        r"^push/viewer/(?P<pk>\d+)$",
+        views.PushViewer.as_view(),
+        name="push-viewer",
+    ),
+    url(
+        r"^push/create/(?:(?P<step>.+)/)?$",
+        views.PushEventWizard.as_view(url_name=f"{app_name}:push-create"),
+        name="push-create",
+    ),
 ]

@@ -9,7 +9,7 @@ from geoip2.database import Reader
 class VideoAppConf(AppConf):
     EPIPHAN_PROVISIONING = False
     EPIPHAN_PREVIEW = False
-    EPIPHAN_PREVIEW_TIMEOUT = 200000
+    EPIPHAN_PREVIEW_TIMEOUT = 5
     EPIPHAN_PREVIEW_ANALYZE_DURATION = 100000000
     CELERY_QUEUE = "video"
     CRATES_RECORDING_URL = "http://localhost/recording/online/{pk}"
@@ -41,6 +41,7 @@ class VideoAppConf(AppConf):
     LIVE_STARTUP_ATTEMPTS = 30
     LIVE_STARTUP_WAIT = 2
     GEOIP_DATABASE = Reader("/var/lib/GeoIP/GeoLite2-City.mmdb")
+    PUSH_READER_PROTOCOL = "rtsp"
 
     class Meta:
         prefix = "video"

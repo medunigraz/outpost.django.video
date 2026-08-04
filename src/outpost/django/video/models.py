@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import subprocess
+from parse import parse
 from base64 import b64encode
 from collections import Counter
 from datetime import timedelta
@@ -24,11 +25,15 @@ import asyncssh
 import certifi
 import requests
 import streamlink
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.fields import JSONField
 from django.contrib.sites.models import Site
 from django.contrib.staticfiles import finders
 from django.core.cache import cache
+from django.core.exceptions import SuspiciousOperation
 from django.core.files import File
 from django.core.files.storage import FileSystemStorage
 from django.core.validators import RegexValidator
@@ -40,13 +45,16 @@ from django.template import (
     Context,
     Template,
 )
-from django.template.loader import get_template
+from django.template.defaultfilters import slugify
+from django.template.loader import (
+    get_template,
+    render_to_string,
+)
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext
 from django.utils.translation import ugettext_lazy as _
 from django_countries.fields import CountryField
-from django_extensions.db.fields import ShortUUIDField
 from django_extensions.db.models import TimeStampedModel
 from django_prometheus.models import ExportModelOperationsMixin
 from django_sshworker.models import (
@@ -84,6 +92,9 @@ from outpost.django.campusonline.models import (
 from polymorphic.models import PolymorphicModel
 from purl import URL
 from redis import Redis
+from requests.exceptions import RequestException
+from requests_toolbelt.sessions import BaseUrlSession
+from shortuuid.django_fields import ShortUUIDField
 from tenacity import (
     RetryError,
     Retrying,
@@ -358,7 +369,7 @@ class EpiphanSource(models.Model):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
             )
-            while (data := inp.stdout.read(8192)):
+            while (data := inp.stdout.read(8192)) :
                 video.stdin.write(data)
                 audio.stdin.write(data)
             video.stdin.close()
@@ -373,10 +384,13 @@ class EpiphanSource(models.Model):
                 audio.stdout.read(),
                 120,
             )
-            inp.wait()
-            video.wait()
-            audio.wait()
+            inp.wait(timeout=settings.VIDEO_EPIPHAN_PREVIEW_TIMEOUT)
+            video.wait(timeout=settings.VIDEO_EPIPHAN_PREVIEW_TIMEOUT)
+            audio.wait(timeout=settings.VIDEO_EPIPHAN_PREVIEW_TIMEOUT)
         except Exception as e:
+            for p in (inp, video, audio):
+                if p.poll() is None:
+                    p.terminate()
             logger.warn(f"{self}: Failed to generate previews: {e}")
             cache.delete(f"EpiphanSource-{self.id}-video-preview")
             cache.delete(f"EpiphanSource-{self.id}-audio-waveform")
@@ -594,9 +608,7 @@ class SideBySideExport(Export):
                 filt = "pad=height={}".format(height)
             else:
                 filt = "null"
-            videos.append(
-                ("[i:{}]{}[v{}]".format(v["id"], filt, i), "[v{}]".format(i))
-            )
+            videos.append(("[i:{}]{}[v{}]".format(v["id"], filt, i), "[v{}]".format(i)))
         aus = [s for s in streams if s["codec_type"] == "audio"]
         fc = "{vf};{v}hstack=inputs={vl}[v];{a}amerge[a]".format(
             vf=";".join([v[0] for v in videos]),
@@ -722,7 +734,7 @@ class LivePortal(models.Model):
 
 
 class LiveChannel(OrderedModel):
-    id = ShortUUIDField(primary_key=True)
+    id = ShortUUIDField(primary_key=True, editable=False)
     name = models.CharField(max_length=512)
     enabled = models.BooleanField(default=False)
     portals = models.ManyToManyField(LivePortal)
@@ -792,9 +804,8 @@ class LiveDeliveryServerNetwork(models.Model):
         return self.name
 
 
-class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
-    id = ShortUUIDField(primary_key=True)
-    channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
+class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), PolymorphicModel):
+    id = ShortUUIDField(primary_key=True, editable=False)
     public = models.BooleanField(default=False)
     started = models.DateTimeField(null=True, editable=False)
     begin = models.DateTimeField(null=True, editable=False)
@@ -811,11 +822,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
     def start(self):
         self.started = timezone.now()
         self.save()
-        for le in LiveEvent.objects.filter(end=None, channel=self.channel).exclude(
-            pk=self.pk
-        ):
-            logger.warning(f"Stopping active LiveEvent {le} ahead of starting {self}")
-            le.stop()
         if not self.job:
             self.job = Job.objects.create(script=self.script)
             requirements = self.livestream_set.values_list(
@@ -865,9 +871,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
             logger.error(f"Could not find initialized streams for: {self}")
             self.job.stop()
             return False
-        # Notify portal
-        for portal in self.channel.portals.all():
-            portal.start(self)
         self.begin = timezone.now()
         self.save()
         return True
@@ -876,9 +879,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         from .tasks import LiveEventTasks
 
         self.end = timezone.now()
-        # Notify portal
-        for portal in self.channel.portals.all():
-            portal.stop(self)
+        self.save()
         # Remove transcoder id from delivery servers
         for ds in self.delivery.all():
             ds.redis.delete(f"HLS/Event/{self.pk}")
@@ -888,7 +889,6 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                 self.job.stop()
             except Exception:
                 logger.warn(f"Could not stop job for {self}")
-        self.save()
         transaction.on_commit(
             lambda: LiveEventTasks.cleanup.apply_async(
                 (self.pk,), queue=settings.VIDEO_CELERY_QUEUE
@@ -953,6 +953,31 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         return f"{self.pk}: {self.title}"
 
 
+class OnDemandLiveEvent(LiveEvent):
+    channel = models.ForeignKey(LiveChannel, on_delete=models.CASCADE)
+
+    def start(self):
+        for le in self.objects.filter(end=None, channel=self.channel).exclude(
+            pk=self.pk
+        ):
+            logger.warning(
+                f"Stopping active OnDemandLiveEvent {le} ahead of starting {self}"
+            )
+            le.stop()
+        if not super().start():
+            return False
+        # Notify portal
+        for portal in self.channel.portals.all():
+            portal.start(self)
+        return True
+
+    def stop(self):
+        # Notify portal
+        for portal in self.channel.portals.all():
+            portal.stop(self)
+        super().stop()
+
+
 class LiveStreamVariant(models.Model):
     height = models.PositiveSmallIntegerField()
     preset = models.CharField(max_length=32)
@@ -982,7 +1007,7 @@ class LiveStreamVariantRequirement(models.Model):
 
 @signal_connect
 class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
-    id = ShortUUIDField(primary_key=True)
+    id = ShortUUIDField(primary_key=True, editable=False)
     event = models.ForeignKey(LiveEvent, on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True)
     delivery = models.ForeignKey(LiveDeliveryServer, on_delete=models.CASCADE)
@@ -1078,7 +1103,7 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
 
     def cleanup(self):
         self.delivery.redis.delete(f"HLS/Viewer/{self.pk}")
-        for s in self.event.streams.all():
+        for s in self.event.livestream_set.all():
             self.delivery.redis.delete(f"HLS/Viewer/{self.pk}/{s.pk}")
 
     def __str__(self):
@@ -1086,7 +1111,7 @@ class LiveViewer(ExportModelOperationsMixin("video.LiveViewer"), models.Model):
 
 
 class LiveStream(models.Model):
-    id = ShortUUIDField(primary_key=True)
+    id = ShortUUIDField(primary_key=True, editable=False)
     event = models.ForeignKey(LiveEvent, on_delete=models.CASCADE)
     type = models.CharField(max_length=128)
     source = models.CharField(max_length=512)
@@ -1239,6 +1264,237 @@ class LiveTemplateStream(models.Model):
     list_size = models.PositiveIntegerField()
     delete_threshold = models.PositiveIntegerField()
 
+
+class PushProtocol(models.Model):
+    name = models.CharField(max_length=128)
+    identifier = models.CharField(max_length=128)
+    url_template = models.CharField(max_length=2048)
+    path_template = models.CharField(max_length=1024)
+
+    def __str__(self):
+        return str(self.name)
+
+    def parse_path(self, path):
+        match = parse(self.path_template, path)
+        if not match:
+            logger.error(f"Unable to parse {path}")
+            raise SuspiciousOperation()
+        if "stream" not in match.named:
+            logger.error(f"Unable to find stream key in {path}")
+            raise SuspiciousOperation()
+        return match.named.get("stream")
+
+
+@signal_connect
+class PushServer(NetworkedDeviceMixin, models.Model):
+    hostname = models.CharField(max_length=128, blank=True)
+    enabled = models.BooleanField(default=True)
+    url = models.URLField()
+    source = models.CharField(max_length=512)
+    username = models.CharField(max_length=1024, blank=True, null=True)
+    password = models.CharField(max_length=1024, blank=True, null=True)
+    recordings = models.CharField(max_length=1024, blank=True, null=True)
+
+    _session = None
+
+    class Meta:
+        unique_together = (("hostname",),)
+        ordering = ("hostname",)
+
+    def __str__(self):
+        return str(self.hostname)
+
+    def get_ingest_url(self, pk):
+        return self.source.format(pk=pk)
+
+    @property
+    def api(self):
+        if not self._session:
+            self._session = BaseUrlSession(base_url=self.url)
+            self._session.auth = (self.username, self.password)
+        return self._session
+
+    def get_path(self, ingest):
+        with self.api.get(f"v3/config/paths/get/{ingest.pk}") as resp:
+            try:
+                resp.raise_for_status()
+            except RequestException:
+                return None
+        return resp.json()
+
+    def add_path(self, ingest):
+        payload = {
+            "name": ingest.pk,
+            "maxReaders": 1,
+            "runOnInit": f"ffmpeg -i {ingest.input} -c copy -f rtsp '{ingest.url}?autoinitialized'"
+            if ingest.input
+            else None,
+            "record": bool(ingest.record and ingest.ingest.server.recordings),
+            "recordPath": ingest.ingest.server.recordings.format(ingest=ingest)
+            if ingest.ingest.server.recordings
+            else None,
+            # "runOnReady": render_to_string(
+            #    "video/on_ready.txt", {"self": self, "settings": settings}
+            # ),
+            # "runOnNotReady": render_to_string(
+            #    "video/on_not_ready.txt", {"self": self, "settings": settings}
+            # ),
+        }
+        try:
+            if self.get_path(ingest):
+                logger.debug(f"Updating path {ingest.pk} with {payload}")
+                with self.api.patch(
+                    f"v3/config/paths/patch/{ingest.pk}", json=payload
+                ) as resp:
+                    resp.raise_for_status()
+            else:
+                logger.debug(f"Creating path {ingest.pk} with {payload}")
+                with self.api.post(
+                    f"v3/config/paths/add/{ingest.pk}", json=payload
+                ) as resp:
+                    resp.raise_for_status()
+
+        except RequestException as e:
+            logger.warn(f"Failed to modify path {ingest.pk}: {e}")
+
+    def remove_path(self, ingest):
+        self.api.delete(f"v3/config/paths/delete/{ingest.pk}")
+
+
+class PushServerProtocol(models.Model):
+    server = models.ForeignKey(PushServer, on_delete=models.CASCADE)
+    protocol = models.ForeignKey(PushProtocol, on_delete=models.CASCADE)
+    port = models.PositiveIntegerField()
+
+    def __str__(self):
+        return f"{self.protocol.name}@{self.server.hostname}:{self.port}"
+
+
+@signal_connect
+class PushLiveEvent(LiveEvent):
+    slug = models.SlugField(unique=True, editable=False)
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
+    room = models.ForeignKey(
+        "geo.Room", null=True, blank=True, on_delete=models.SET_NULL
+    )
+    list_size = models.PositiveIntegerField(default=20)
+    delete_threshold = models.PositiveIntegerField(default=100)
+
+    stylesheet = models.TextField(blank=True, null=True)
+    logo = models.FileField(upload_to=Uuid4Upload, blank=True, null=True)
+    intro = models.FileField(upload_to=Uuid4Upload, blank=True, null=True)
+    chat = models.BooleanField(default=False)
+    users = models.ManyToManyField(get_user_model(), blank=True, related_name="+")
+
+    def pre_save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+
+    def post_save(self, *args, **kwargs):
+        for ingest in self.ingests.all():
+            ingest.ingest.server.add_path(ingest)
+
+    def pre_delete(self, *args, **kwargs):
+        for ingest in self.ingests.all():
+            ingest.server.remove_path(ingest)
+
+    @property
+    def group(self):
+        return f"push-event-iplayer-{self.pk}"
+
+    @property
+    def player(self):
+        return {}
+
+    def is_live(self):
+        if not self.ingests.exists():
+            return False
+        return not self.ingests.filter(published=False).exists()
+
+    def start(self):
+        for ingest in self.ingests.filter(published=True):
+            ls, created = LiveStream.objects.get_or_create(
+                event=self,
+                type=ingest.name,
+                defaults={
+                    "source": ingest.ingest.server.get_ingest_url(ingest.pk),
+                    "list_size": self.list_size,
+                    "delete_threshold": self.delete_threshold,
+                }
+            )
+            ls.variants.set(ingest.variants.all())
+        if not super().start():
+            return False
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            self.group, {"type": "event.start", "player": self.player}
+        )
+        return True
+
+    def stop(self):
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(self.group, {"type": "event.stop"})
+        super().stop()
+
+
+class PushLiveIngest(OrderedModel):
+    id = ShortUUIDField(primary_key=True, editable=False)
+    name = models.CharField(max_length=256)
+    event = models.ForeignKey(
+        PushLiveEvent,
+        related_name="ingests",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
+    ingest = models.ForeignKey(PushServerProtocol, on_delete=models.CASCADE)
+    input = models.URLField(blank=True, null=True)
+    variants = models.ManyToManyField(LiveStreamVariant)
+    published = models.BooleanField(default=False, editable=False)
+    record = models.BooleanField(default=False)
+
+    order_with_respect_to = "event"
+
+    @property
+    def path(self):
+        return self.ingest.protocol.path_template.format(stream=self.pk)
+
+    @property
+    def url(self):
+        template = Template(self.ingest.protocol.url_template)
+        context = Context({"ingest": self})
+        return template.render(context)
+
+    def post_save(self, *args, **kwargs):
+        if not self.published:
+            self.ingest.server.add_path(self)
+
+    def ready(self):
+        self.published = True
+        self.save()
+        if self.event.ingests.filter(published=False).exists():
+            logger.debug(f"Ingest {self} ready but still waiting for other ingests")
+            return
+        logger.info(
+            f"All ingests of event {self.event} have been published, starting event"
+        )
+        self.event.start()
+
+    def not_ready(self):
+        logger.info(f"Ingest {self} stopped publishing")
+        self.event.stop()
+        self.published = False
+        self.save()
+
+
+class PushLiveUser(models.Model):
+    event = models.ForeignKey(PushLiveEvent, on_delete=models.CASCADE)
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
+    email = models.EmailField()
+    viewer = models.ForeignKey(LiveViewer, on_delete=models.CASCADE, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.email}: {self.event}"
 
 # class Transcription(models.Model):
 #    event = models.ForeignKey("Event)")
