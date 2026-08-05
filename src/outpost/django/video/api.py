@@ -98,7 +98,7 @@ class RecorderViewSet(ModelViewSet):
     queryset = Recorder.objects.all()
     serializer_class = RecorderSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
-    filter_fields = ()
+    filterset_fields = ()
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -117,7 +117,7 @@ class RecordingViewSet(ModelViewSet):
     queryset = Recording.objects.all()
     serializer_class = RecordingSerializer
     permission_classes = (DjangoModelPermissions,)
-    filter_fields = ("recorder",)
+    filterset_fields = ("recorder",)
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -137,7 +137,7 @@ class RecordingAssetViewSet(ModelViewSet):
     queryset = RecordingAsset.objects.all()
     serializer_class = RecordingAssetSerializer
     permission_classes = (DjangoModelPermissions,)
-    filter_fields = ("recording", "mimetype")
+    filterset_fields = ("recording", "mimetype")
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -157,7 +157,7 @@ class EpiphanViewSet(ModelViewSet):
     queryset = Recorder.objects.instance_of(Epiphan).filter(enabled=True)
     serializer_class = EpiphanSerializer
     permission_classes = (ExtendedDjangoObjectPermissions,)
-    filter_fields = ()
+    filterset_fields = ()
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -176,7 +176,7 @@ class EpiphanChannelViewSet(ModelViewSet):
     queryset = EpiphanChannel.objects.filter(epiphan__enabled=True)
     serializer_class = EpiphanChannelSerializer
     permission_classes = (EpiphanChannelPermissions,)
-    filter_fields = ("epiphan",)
+    filterset_fields = ("epiphan",)
     http_method_names = ModelViewSet.http_method_names + ["start", "stop"]
 
     @action(methods=["start", "stop"], detail=True)
@@ -190,21 +190,21 @@ class EpiphanSourceViewSet(ModelViewSet):
     queryset = EpiphanSource.objects.filter(epiphan__enabled=True)
     serializer_class = EpiphanSourceSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
-    filter_fields = ("epiphan",)
+    filterset_fields = ("epiphan",)
 
 
 class EpiphanMediaViewSet(ModelViewSet):
     queryset = EpiphanMedia.objects.filter(epiphan__enabled=True)
     serializer_class = EpiphanMediaSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
-    filter_fields = ("epiphan",)
+    filterset_fields = ("epiphan",)
 
 
 class EpiphanInputViewSet(ModelViewSet):
     queryset = EpiphanInput.objects.filter(epiphan__enabled=True)
     serializer_class = EpiphanInputSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
-    filter_fields = ("epiphan",)
+    filterset_fields = ("epiphan",)
 
 
 @docstring_format(model=LiveChannel.__doc__, serializer=LiveChannelSerializer.__doc__)
@@ -212,7 +212,7 @@ class LiveChannelViewSet(ReadOnlyModelViewSet):
     queryset = LiveChannel.objects.filter(enabled=True)
     serializer_class = LiveChannelSerializer
     permission_classes = (DjangoModelPermissionsOrAnonReadOnly,)
-    # filter_fields = ("epiphan",)
+    # filterset_fields = ("epiphan",)
 
 
 @docstring_format(model=LiveTemplate.__doc__, serializer=LiveTemplateSerializer.__doc__)
@@ -221,7 +221,7 @@ class LiveTemplateViewSet(FlexFieldsMixin, ReadOnlyModelViewSet):
     serializer_class = LiveTemplateSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
     permit_list_expands = ("livetemplatescene_set",)
-    # filter_fields = ("epiphan",)
+    # filterset_fields = ("epiphan",)
 
 
 @docstring_format(
@@ -231,4 +231,4 @@ class LiveTemplateSceneViewSet(ReadOnlyModelViewSet):
     queryset = LiveTemplateScene.objects.all()
     serializer_class = LiveTemplateSceneSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
-    # filter_fields = ("epiphan",)
+    # filterset_fields = ("epiphan",)
