@@ -120,6 +120,6 @@ class LiveTemplateSerializer(FlexFieldsModelSerializer):
     expandable_fields = {
         "livetemplatescene_set": (
             LiveTemplateSceneSerializer,
-            {"source": "livetemplatescene_set", "many": True},
+            {"many": True},
         )
     }
