@@ -58,7 +58,7 @@ class SSHServer(asyncssh.SSHServer):
         cond = {"pk": username, "server": self._server, "enabled": True}
         device = Epiphan.objects.get(**cond)
         logger.debug("Device: {}".format(device))
-        private = asyncssh.import_private_key(device.key.tobytes())
+        private = asyncssh.import_private_key(device.key)
         public = private.export_public_key().decode("ascii")
         logger.debug("Public key: {}".format(public))
 
