@@ -53,10 +53,11 @@ class SSHServer(asyncssh.SSHServer):
         logger.debug("Got connection from {}".format(conn))
         self._conn = conn
 
-    def begin_auth(self, username):
+    async def begin_auth(self, username):
         logger.debug("User: {}".format(username))
         cond = {"pk": username, "server": self._server, "enabled": True}
-        device = Epiphan.objects.get(**cond)
+        device = await Epiphan.objects.aget(**cond)
+        self._conn.set_extra_info(device=device)
         logger.debug("Device: {}".format(device))
         private = asyncssh.import_private_key(device.key)
         public = private.export_public_key().decode("ascii")
@@ -84,10 +85,9 @@ class SFTPServer(asyncssh.SFTPServer):
     )
 
     def __init__(self, server, conn):
-        username = conn.get_extra_info("username")
-        self._server = server
-        self._epiphan = Epiphan.objects.get(pk=username)
         super().__init__(conn)
+        self._epiphan = conn.get_extra_info("device")
+        self._server = server
         unsupported = [
             "read",
             "rename",
@@ -115,16 +115,22 @@ class SFTPServer(asyncssh.SFTPServer):
     def format_group(self, gid):
         return str(self._epiphan.pk)
 
-    @log
-    def open(self, raw, pflags, attrs):
+    # @log
+    async def open(self, raw, pflags, attrs):
         path = Path(raw.decode("utf-8"))
         logger.info("Uploading video: {}".format(path.name))
         matches = self.pattern.match(path.name)
+        if not matches:
+            raise asyncssh.SFTPPermissionDenied(
+                f"Filename {path} does not match the expected upload pattern!"
+            )
         channel = None
         try:
             stream = matches.groupdict().get("stream")
             if stream:
-                channel = EpiphanChannel.objects.get(epiphan=self._epiphan, name=stream)
+                channel = await EpiphanChannel.objects.aget(
+                    epiphan=self._epiphan, name=stream
+                )
         except EpiphanChannel.DoesNotExist:
             pass
         start = None
@@ -142,20 +148,21 @@ class SFTPServer(asyncssh.SFTPServer):
         rec = EpiphanRecording(
             recorder=self._epiphan, info={}, channel=channel, start=start, ready=False
         )
-        rec.online.save(path.name, ContentFile(b""))
+        rec.online = ContentFile(b"", name=path.name)
+        await rec.asave()
         if not rec.online.file.closed:
             rec.online.file.close()
         rec.online.file.open("wb")
         return rec
 
-    @log
-    def close(self, rec):
+    # @log
+    async def close(self, rec):
         os.chmod(rec.online.path, settings.FILE_UPLOAD_PERMISSIONS)
         logger.info("Finished file: {}".format(rec.online.path))
         if not rec.online.file.closed:
             rec.online.file.close()
         rec.ready = True
-        rec.save()
+        await rec.asave()
         logger.info("Starting post-upload task chain")
         tasks = [
             RecordingTasks.process.signature(
