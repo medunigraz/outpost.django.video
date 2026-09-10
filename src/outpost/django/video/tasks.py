@@ -349,7 +349,10 @@ class EpiphanTasks:
             epiphan__enabled=True, epiphan__online=True
         )
         logger.debug(f"Updating {sources.count()} sources.")
-        queue = task.request.delivery_info.get("routing_key")
+        try:
+            queue = task.request.delivery_info.get("routing_key")
+        except:
+            queue = None
 
         for s in sources:
             EpiphanTasks.preview_source.apply_async((s.pk,), queue=queue)
