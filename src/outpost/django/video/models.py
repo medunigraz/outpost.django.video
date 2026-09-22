@@ -301,7 +301,7 @@ class EpiphanSource(models.Model):
     input = models.ForeignKey("Input", blank=True, null=True, on_delete=models.SET_NULL)
 
     class Meta:
-        ordering = ("epiphan__room__campusonline__name_short", "number")
+        ordering = ("epiphan__room__campusonline__name_full", "number")
 
     @property
     def rtsp(self):
@@ -1162,6 +1162,12 @@ class LiveTemplate(models.Model):
     description = models.TextField()
     delivery = models.ManyToManyField(LiveDeliveryServer)
 
+    class Meta:
+        ordering = (
+            "name",
+            "room__name_full",
+        )
+
     def __str__(self):
         return f"{self.name} ({self.room})"
 
@@ -1169,6 +1175,13 @@ class LiveTemplate(models.Model):
 class LiveTemplateScene(models.Model):
     template = models.ForeignKey(LiveTemplate, on_delete=models.CASCADE)
     name = models.CharField(max_length=128)
+
+    class Meta:
+        ordering = (
+            "template__name",
+            "template__room__name_full",
+            "name",
+        )
 
     def __str__(self):
         return f"{self.template}: {self.name}"
