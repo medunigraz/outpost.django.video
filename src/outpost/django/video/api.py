@@ -1,6 +1,7 @@
 from django.http import Http404
 from django.core.exceptions import BadRequest
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from guardian.shortcuts import get_objects_for_user
 from outpost.django.api.permissions import (
     ExtendedDjangoModelPermissions,
@@ -214,7 +215,8 @@ class LiveChannelViewSet(ReadOnlyModelViewSet):
     queryset = LiveChannel.objects.filter(enabled=True)
     serializer_class = LiveChannelSerializer
     permission_classes = (DjangoModelPermissionsOrAnonReadOnly,)
-    # filterset_fields = ("epiphan",)
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ("portals",)
 
 
 @docstring_format(model=LiveTemplate.__doc__, serializer=LiveTemplateSerializer.__doc__)
@@ -223,7 +225,6 @@ class LiveTemplateViewSet(FlexFieldsMixin, ReadOnlyModelViewSet):
     serializer_class = LiveTemplateSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
     permit_list_expands = ("livetemplatescene_set",)
-    # filterset_fields = ("epiphan",)
 
 
 @docstring_format(
@@ -233,4 +234,3 @@ class LiveTemplateSceneViewSet(ReadOnlyModelViewSet):
     queryset = LiveTemplateScene.objects.all()
     serializer_class = LiveTemplateSceneSerializer
     permission_classes = (ExtendedDjangoModelPermissions,)
-    # filterset_fields = ("epiphan",)
