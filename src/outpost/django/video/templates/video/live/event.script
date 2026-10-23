@@ -115,10 +115,9 @@ async def transcode(stream):
     embeds = []
     for v, vdata in variants.items():
         height = vdata.get("height")
-        filters.append(f"[v_{v}]scale@scale_v_{v}=w=-1:h={height}[v_{v}_scaled]")
+        filters.append(f"[v_{v}]scale_cuda@scale_v_{v}=w=-1:h={height}[v_{v}_scaled]")
         maps.extend([
             "-map", f"[v_{v}_scaled]",
-            f"-r:v:{v}", "30",
             f"-c:v:{v}", "h264_nvenc",
             "-gpu", GPU,
             f"-b:v:{v}", vdata.get("video"),
@@ -137,7 +136,7 @@ async def transcode(stream):
             embeds.append(f"v:{v}")
 
     filters.append(
-        f"[p]select@scenefilter='not(n)+gt(scene\\,{SCENE_THRESHOLD})',split@preview=2[p_jpeg][p_webp]"
+        f"[p]hwdownload,format=nv12,fps=2,split@preview=2[p_jpeg][p_webp]"
     )
 
     if has_audio:
@@ -159,21 +158,25 @@ async def transcode(stream):
         *options,
         "-hwaccel_device", GPU,
         "-hwaccel", "cuda",
+        "-hwaccel_output_format", "cuda",
         "-c:v", "h264_cuvid",
         "-i", stream.get("source"),
         "-filter_complex", ";".join(filters),
         "-map", "[p_jpeg]",
-        "-fps_mode", "passthrough",
+        "-fps_mode", "cfr",
         "-f", "image2",
         "-update", "1",
+        "-atomic_writing", "1",
         f"{name}.jpg",
         "-map", "[p_webp]",
-        "-fps_mode", "passthrough",
+        "-fps_mode", "cfr",
         "-f", "image2",
         "-update", "1",
+        "-atomic_writing", "1",
         f"{name}.jpg.webp",
         *maps,
         "-f", "hls",
+        "-fps_mode", "cfr",
         "-hls_time", SEGMENT,
         "-hls_flags", "independent_segments+delete_segments",
         "-hls_segment_type", "mpegts",
@@ -187,34 +190,6 @@ async def transcode(stream):
         stderr=sys.stderr,
         cwd=str(BASE),
     )
-
-
-async def tunnel_loop(stream):
-    try:
-        while True:
-            proc = await asyncio.create_subprocess_exec(
-                SSH,
-                "-i", "/tmp/bla",
-                "-R", "/tmp/remote.socket.transcode:/tmp/local/transcode",
-                "-R", "/tmp/remote.socket.preview:/tmp/local/preview",
-                "-N",
-                "-a",
-                "-q",
-                "-o", "ServerAliveInterval=10",
-                "-o", "IdentitiesOnly=yes",
-                "-l", "username",
-                "sj074.medunigraz.at"
-            )
-            await proc.wait()
-    except asyncio.CancelledError:
-        if proc:
-            if not proc.returncode:
-                proc.terminate()
-        raise
-
-
-async def tunnel(stream):
-    return asyncio.create_task(tunnel_loop(args))
 
 
 async def manager(stop):
