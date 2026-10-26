@@ -837,7 +837,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
                 logger.error(f"Could not start job for {self}")
                 return False
         # Set transcoder id on delivery servers
-        for ds in self.delivery.all():
+        for ds in self.delivery.filter(enabled=True):
             ds.redis.set(
                 f"HLS/Event/{self.pk}", self.job.worker.properties.get("transcoder-id")
             )
@@ -848,7 +848,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         try:
             for attempt in retry:
                 with attempt:
-                    for ds in self.delivery.all():
+                    for ds in self.delivery.filter(enabled=True):
                         v = LiveViewer.objects.create(event=self, delivery=ds)
                         try:
                             for ls in self.livestream_set.all():
@@ -881,7 +881,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         for portal in self.channel.portals.all():
             portal.stop(self)
         # Remove transcoder id from delivery servers
-        for ds in self.delivery.all():
+        for ds in self.delivery.filter(enabled=True():
             ds.redis.delete(f"HLS/Event/{self.pk}")
         # Stop transcoding job
         if self.job:
@@ -908,7 +908,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         data = dict()
         for s in self.livestream_set.all():
             data[s.type] = list()
-            for d in self.delivery.all():
+            for d in self.delivery.filter(enabled=True):
                 url = (
                     URL(d.base)
                     .add_path_segment(self.pk)
