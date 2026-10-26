@@ -881,7 +881,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
         for portal in self.channel.portals.all():
             portal.stop(self)
         # Remove transcoder id from delivery servers
-        for ds in self.delivery.filter(enabled=True():
+        for ds in self.delivery.filter(enabled=True):
             ds.redis.delete(f"HLS/Event/{self.pk}")
         # Stop transcoding job
         if self.job:
