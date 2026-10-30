@@ -893,7 +893,7 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
             try:
                 self.job.stop()
             except Exception:
-                logger.warn(f"Could not stop job for {self}")
+                logger.error(f"Could not stop job for {self}")
         self.save()
         transaction.on_commit(
             lambda: LiveEventTasks.cleanup.apply_async(
