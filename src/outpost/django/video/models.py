@@ -882,7 +882,12 @@ class LiveEvent(ExportModelOperationsMixin("video.LiveEvent"), models.Model):
             portal.stop(self)
         # Remove transcoder id from delivery servers
         for ds in self.delivery.filter(enabled=True):
-            ds.redis.delete(f"HLS/Event/{self.pk}")
+            try:
+                ds.redis.delete(f"HLS/Event/{self.pk}")
+            except ConnectionError as e:
+                logger.error(
+                    f"Could not delete LiveEvent key on {ds.control}", exc_info=e
+                )
         # Stop transcoding job
         if self.job:
             try:
